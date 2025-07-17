@@ -1,11 +1,13 @@
+from enum import Enum
+import os
+import traceback
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import pandas as pd
-import os
 import soundscapy as sspy
 import matplotlib.pyplot as plt
-import seaborn as sns
-from enum import Enum
+
+
 
 
 # // TODO: Calcular mediana y dibujarla
@@ -21,6 +23,7 @@ ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
 class CustomFiltering(ctk.CTkFrame):
+    """Custom filtering entry with a dropdown list of values."""
     def __init__(self, master, values, default_text="", **kwargs):
         super().__init__(master, **kwargs)
         self.values = values
@@ -57,12 +60,14 @@ class CustomFiltering(ctk.CTkFrame):
         self.set(self.default_text)
     
     def toggle_list(self):
+        """Toggle the visibility of the dropdown list."""
         if self.list_window and self.list_window.winfo_exists():
             self.close_list_window()
         else:
             self.show_list()
     
     def show_list(self):
+        """Show the dropdown list with filtered values."""
         self.list_window = ctk.CTkToplevel(self)
         self.list_window.overrideredirect(True)
         
@@ -121,24 +126,29 @@ class CustomFiltering(ctk.CTkFrame):
 
         
     
-    def filter_values(self, event=None):
+    def filter_values(self):
+        """Filter the values based on the current entry text."""
         if self.list_window and self.list_window.winfo_exists():
             self.list_window.destroy()
             self.list_window = None
             self.show_list()
     
     def select_value(self, val):
+        """Select a value from the dropdown list and set it in the entry."""
         self.set(val)
         self.close_list_window()
     
     def get(self):
+        """Get the current value of the entry."""
         return self.entry.get()
     
     def set(self, value):
+        """Set the value of the entry."""
         self.entry.delete(0, "end")
         self.entry.insert(0, value)
 
     def close_list_window(self):
+        """Close the dropdown list window and clean up."""
         if self.list_window:
             try:
                 if self.list_window.winfo_exists():
@@ -168,6 +178,7 @@ class CustomFiltering(ctk.CTkFrame):
 
 
     def on_global_click(self, event):
+        """Handle global click events to close the dropdown list if clicked outside."""
         if self.list_window and self.list_window.winfo_exists():
             try:
                 x1 = self.list_window.winfo_rootx()
@@ -184,6 +195,7 @@ class CustomFiltering(ctk.CTkFrame):
 
 
 class BasicWindow(ctk.CTk):
+    """Basic window class for the SoundScape application."""
     def __init__(self):
         super().__init__()
         self.title("SoundScape GUI")
@@ -202,7 +214,6 @@ class BasicWindow(ctk.CTk):
         Handle all Tkinter callback exceptions (button clicks, etc.)
         This method overrides Tkinter's default error reporting
         """
-        import traceback
         
         # Print to console with our standard error prefix
         print("Error detected in a TKinter callback:")
@@ -222,6 +233,11 @@ class BasicWindow(ctk.CTk):
 
 
 class GUI(BasicWindow):
+    """Main GUI class for the SoundScape application."""
+    
+    # Class constant for maximum unique values threshold
+    MAX_UNIQUES = 15
+    
     def __init__(self):
         super().__init__()
         self.df = None  # DataFrame to hold the loaded data             
@@ -353,7 +369,7 @@ class GUI(BasicWindow):
                 if default_labels[emot] in columns:
                     dropdown.set(default_labels[emot])
                 else:
-                    dropdown.set(f"Select a column")
+                    dropdown.set("Select a column")
 
             self.emotion_selectors[emot] = dropdown
             
@@ -366,7 +382,7 @@ class GUI(BasicWindow):
         for emot, dropdown in self.emotion_selectors.items():
             selected_value = dropdown.get()
             if selected_value not in self.df.columns:
-                messagebox.showerror("Selection Error", f"You must select a column for each emotion.")
+                messagebox.showerror("Selection Error", "You must select a column for each emotion.")
                 return self.handle_emotions()
             
             # Change the header of the emotions to its column name
@@ -436,7 +452,7 @@ class GUI(BasicWindow):
         for pe, dropdown in self.PE_selectors.items():
             selected_value = dropdown.get()
             if selected_value not in self.df.columns:
-                messagebox.showerror("Selection Error", f"You must select a column for each coordinate.")
+                messagebox.showerror("Selection Error", "You must select a column for each coordinate.")
                 return self.handle_pe()
             
             # Change the header of the coordinates to its column name
@@ -446,6 +462,7 @@ class GUI(BasicWindow):
         self.filtering()
 
     def filtering(self):
+        """Filter the DataFrame based on user-selected columns."""
         self.clear_window()
         back_func = self.handle_pe if self.data_types == "coords" else self.handle_emotions
         self.header(back_func, "Select a column to filter:")
@@ -454,10 +471,10 @@ class GUI(BasicWindow):
         columns = list(self.df.columns)
 
         # Delete the ISOPleasant, ISOEventful, or PAQi if they exist
-        toDelete = ["ISOPleasant", "ISOEventful"]
+        to_delete = ["ISOPleasant", "ISOEventful"]
         for i in range(1,9):
-            toDelete.append(f"PAQ{i}")
-        for col in toDelete:
+            to_delete.append(f"PAQ{i}")
+        for col in to_delete:
             if col in columns:
                 columns.remove(col)
 
@@ -505,10 +522,8 @@ class GUI(BasicWindow):
         col_data = self.df[selected_column].dropna()
         unique_values = col_data.unique()
         
-        
 
         ### FILTERS depending on the type of data
-        self.MAX_UNIQUES = 15
         if len(unique_values) <= self.MAX_UNIQUES:
 
             unique_values = sorted(unique_values)
@@ -988,10 +1003,10 @@ class GUI(BasicWindow):
 
         # CustomFiltering widget to select which columns to differentiate by
         values = list(self.df.columns)
-        toDelete = ["ISOPleasant", "ISOEventful"]
+        to_delete = ["ISOPleasant", "ISOEventful"]
         for i in range(1,9):
-            toDelete.append(f"PAQ{i}")
-        for col in toDelete:
+            to_delete.append(f"PAQ{i}")
+        for col in to_delete:
             if col in values:
                 values.remove(col)
         
@@ -1196,18 +1211,15 @@ if __name__ == "__main__":
         app = GUI()
         app.mainloop()
     except Exception as e:
-        import traceback
 
-        error_message = f"ERROR DETECTED:\n\n{str(e)}\n\nTechnical details:\n{traceback.format_exc()}"
+        ERROR_MSG = f"ERROR DETECTED:\n\n{str(e)}\n\nTechnical details:\n{traceback.format_exc()}"
         try:
-            import tkinter as tk
-            from tkinter import messagebox
-            root = tk.Tk()
+            root = ctk.CTk()  # Create a hidden root window for tkinter
             root.withdraw()  # Hide the main window
-            messagebox.showerror("ERROR DETECTED - Fatal Error", error_message)
+            messagebox.showerror("ERROR DETECTED - Fatal Error", ERROR_MSG)
             root.destroy()
         except Exception as inner_e:
             # If tkinter is not available, print the error to the console
             print("Could not show error message with tkinter. Printing to console instead.")
-            print(error_message)
+            print(ERROR_MSG)
         exit(1)
