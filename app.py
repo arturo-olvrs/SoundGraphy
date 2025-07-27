@@ -1,22 +1,14 @@
 from enum import Enum
 import os
+import sys
 import traceback
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import pandas as pd
 import soundscapy as sspy
+import seaborn as sns
 import matplotlib.pyplot as plt
 
-
-
-
-# // TODO: Calcular mediana y dibujarla
-# Calcular mediana de cada uno y luego ploteo
-# Rango intercuartilico Q3 - Q1
-# Grafico con distribucion para filtrar. Grouped marginal plot
-# Graficos de boxes. Box overlap
-# Ver como exportar
-# Descarmar todos
 
 FONT=("Arial", 20)
 ctk.set_appearance_mode("System")
@@ -126,7 +118,7 @@ class CustomFiltering(ctk.CTkFrame):
 
         
     
-    def filter_values(self):
+    def filter_values(self, event=None):
         """Filter the values based on the current entry text."""
         if self.list_window and self.list_window.winfo_exists():
             self.list_window.destroy()
@@ -207,6 +199,9 @@ class BasicWindow(ctk.CTk):
 
         # Override Tkinter's error reporting to catch all callback exceptions
         self.report_callback_exception = self.handle_tkinter_error
+        
+        # Bind the window close event to cleanup
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
     
     def handle_tkinter_error(self, exc_type, exc_value, exc_traceback):
@@ -224,6 +219,24 @@ class BasicWindow(ctk.CTk):
         messagebox.showerror("Error in Application", error_msg)
 
         exit(1)  # Exit the application after showing the error
+
+    def on_closing(self):
+        """Handle application closing event - cleanup matplotlib and close properly."""
+        try:
+            # Close all matplotlib figures to prevent background errors
+            plt.close('all')
+                
+        except Exception as e:
+            print(f"Warning: Error during matplotlib cleanup: {e}")
+        
+        try:
+            # Destroy the window
+            self.destroy()
+        except Exception as e:
+            print(f"Warning: Error during window destruction: {e}")
+            
+        # Force exit if needed
+        sys.exit(0)
 
     def clear_window(self):
         """Clear the current window by destroying all widgets."""
@@ -288,6 +301,9 @@ class GUI(BasicWindow):
         if not filepath:
             messagebox.showwarning("No File Selected", "Please select a file to proceed.")
             return self.open_select_doc
+
+        # Save name (w/o extension)
+        self.file_name = os.path.splitext(os.path.basename(filepath))[0]
 
         ext = os.path.splitext(filepath)[1].lower()
         try:
@@ -998,8 +1014,8 @@ class GUI(BasicWindow):
         self.clear_window()
         self.header(self.filtering, "Filtering Complete!")
         
-        save_button = ctk.CTkButton(self, text="Download Filtered Data", command=self.save_filtered_data)
-        save_button.pack(pady=(10, 40))
+        save_button = ctk.CTkButton(self, text="Download Filtered Data", command=lambda: self.save_df_to_file(self.df, default_name=self.file_name + "_filtered"))
+        save_button.pack(pady=(10, 30))
 
         # CustomFiltering widget to select which columns to differentiate by
         values = list(self.df.columns)
@@ -1009,23 +1025,44 @@ class GUI(BasicWindow):
         for col in to_delete:
             if col in values:
                 values.remove(col)
+
+        # Button to obtain the IQR of each column
+        if self.data_types == "emotions":
+            # Frame to contain both buttons in the same row
+            statistics_frame = ctk.CTkFrame(self, fg_color="transparent")
+            statistics_frame.pack(pady=(10,30))
+            
+            self.iqr_button = ctk.CTkButton(statistics_frame, text="IQR", command=lambda: self.show_iqr())
+            self.iqr_button.pack(side="left", padx=5)
+            
+            self.median_button = ctk.CTkButton(statistics_frame, text="Median", command=lambda: self.show_median())
+            self.median_button.pack(side="left", padx=5)
         
-        # Horizontal frame for checkbox and missing fields - FULL WIDTH
+        # Column to differentiate by
         frame = ctk.CTkFrame(self, fg_color="transparent")
         frame.pack(pady=10, fill="x")  # fill="x" to make it full width
         center_frame = ctk.CTkFrame(frame, fg_color="transparent")
         center_frame.pack(expand=True)  # expand=True centers the frame internally
-
-        # CustomFiltering widget to select which columns to differentiate by
         self.differentiation_selector = CustomFiltering(center_frame, values=values, default_text="None")        
         self.differentiation_selector_label = ctk.CTkLabel(center_frame, text="Select the column to differentiate by:")
         self.differentiation_selector_label.pack(side="left", padx=5)
         self.differentiation_selector.pack(side="left", padx=5)
+
+        # Entry to select if drawing the median or not
+        if self.data_types == "emotions":
+            self.draw_median_var = ctk.BooleanVar(value=True)
+            draw_median_checkbox = ctk.CTkCheckBox(
+                self,
+                text="Draw median",
+                variable=self.draw_median_var
+            )
+            draw_median_checkbox.pack(pady=10)
         
+    
 
         # Entry for the title of the graph
         frame = ctk.CTkFrame(self, fg_color="transparent")
-        frame.pack(pady=(10, 40), fill="x")  # fill="x" to make it full width
+        frame.pack(pady=(10,40), fill="x")  # fill="x" to make it full width
         center_frame = ctk.CTkFrame(frame, fg_color="transparent")
         center_frame.pack(expand=True)  # expand=True centers the frame internally
         self.title_label = ctk.CTkLabel(center_frame, text="Title for the graph:")
@@ -1033,7 +1070,11 @@ class GUI(BasicWindow):
         self.title_label.pack(side="left", padx=5)
         self.title_entry.pack(side="left", padx=5)
 
+        
+        
 
+
+        # Dropdown to select the type of graph
         self.graph_type_label = ctk.CTkLabel(self, text="Select the type of graph:")
         self.graph_type_label.pack(pady=10)
         values = ["Scatter", "Density", "Density with Distribution", "Density only P50", "Density only P50 (lines)"]
@@ -1046,38 +1087,6 @@ class GUI(BasicWindow):
         self.graph_type_selector.pack(pady=5)
 
 
-    def save_filtered_data(self):
-        """Save the filtered DataFrame to a file."""
-        filetypes = [
-            ("Excel files", "*.xls *.xlsx"),
-            ("CSV/TSF files", "*.csv *.tsv"),
-            ("OpenDocument Spreadsheet", "*.ods"),
-        ]
-        filepath = filedialog.asksaveasfilename(
-            title="Save Filtered Data",
-            filetypes=filetypes,
-            defaultextension=".xlsx"  # Default extension
-        )
-        if not filepath:
-            messagebox.showwarning("No File Selected", "Please select a file to save the filtered data.")
-            return self.save_filtered_data
-
-        try:
-            ext = os.path.splitext(filepath)[1].lower()
-            if ext == ".csv":
-                self.df.to_csv(filepath, index=False)
-            elif ext in [".xls", ".xlsx"]:
-                self.df.to_excel(filepath, index=False)
-            elif ext == ".tsv":
-                self.df.to_csv(filepath, sep="\t", index=False)
-            elif ext == ".ods":
-                self.df.to_excel(filepath, index=False, engine='odf')
-            else:
-                messagebox.showerror("Error", "Unsupported file format selected.")
-                return self.save_filtered_data
-            messagebox.showinfo("Success", "Filtered data saved successfully!")
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not save file:\n{e}")
 
     def draw_graph(self, graph_type):
         """Draw the selected type of graph based on the filtered DataFrame."""
@@ -1119,7 +1128,7 @@ class GUI(BasicWindow):
             if differentiation_column is None:
                 common_args["color"] = "steelblue"
 
-            if graph_type == "Scatter":
+            if graph_type == "Scatter":            
                 sspy.plotting.scatter_plot(plot_df, **common_args)
 
             elif graph_type == "Density":
@@ -1165,37 +1174,250 @@ class GUI(BasicWindow):
                     messagebox.showerror("Error", "Radar Plot requires less than 3 rows of data.")
                 else:
                     # Revert from PAQ to emotions
-                    class PAQ(Enum):
-                        """Enumeration of Perceptual Attribute Questions (PAQ) names and IDs."""
-
-                        PLEASANT = ("pleasant", "PAQ1")
-                        VIBRANT = ("vibrant", "PAQ2")
-                        EVENTFUL = ("eventful", "PAQ3")
-                        CHAOTIC = ("chaotic", "PAQ4")
-                        ANNOYING = ("annoying", "PAQ5")
-                        MONOTONOUS = ("monotonous", "PAQ6")
-                        UNEVENTFUL = ("uneventful", "PAQ7")
-                        CALM = ("calm", "PAQ8")
-
-                        def __init__(self, label: str, id: str):
-                            self.label = label
-                            self.id = id
-
-
-                    PAQ_DICT = {paq.id: paq.label for paq in PAQ}
-                    plot_df.rename(columns=PAQ_DICT, inplace=True)
+                    plot_df = self.revert_from_PAQ(plot_df)
 
                     sspy.plotting.likert.paq_radar_plot(plot_df)
-
-                
-            
             else:
                 messagebox.showerror("Error", "Unsupported graph type selected.")
+
+            
+            if self.data_types == "emotions" \
+                and hasattr(self, 'draw_median_var') \
+                and self.draw_median_var.get() \
+                and graph_type not in ["Radar Plot"]:
+
+                self.draw_median(plot_df, differentiation_column)
+
             
             plt.show()
             
         except Exception as e:
             messagebox.showerror("Error", f"Could not draw graph:\n{e}")
+
+    def revert_from_PAQ(self, data):
+        """Revert the DataFrame from PAQ columns to emotions."""
+        class PAQ(Enum):
+            """Enumeration of Perceptual Attribute Questions (PAQ) names and IDs."""
+
+            PLEASANT = ("pleasant", "PAQ1")
+            VIBRANT = ("vibrant", "PAQ2")
+            EVENTFUL = ("eventful", "PAQ3")
+            CHAOTIC = ("chaotic", "PAQ4")
+            ANNOYING = ("annoying", "PAQ5")
+            MONOTONOUS = ("monotonous", "PAQ6")
+            UNEVENTFUL = ("uneventful", "PAQ7")
+            CALM = ("calm", "PAQ8")
+
+            def __init__(self, label: str, id: str):
+                self.label = label
+                self.id = id
+
+        PAQ_DICT_REVERT = {paq.id: paq.label for paq in PAQ}
+        
+        
+        # Check if it's a DataFrame or Series and handle accordingly
+        if isinstance(data, pd.DataFrame):
+            data.rename(columns=PAQ_DICT_REVERT, inplace=True)
+        elif isinstance(data, pd.Series):
+            data.rename(index=PAQ_DICT_REVERT, inplace=True)
+        
+        return data
+        
+    def show_iqr(self):
+        """Show the IQR of each column PAQ and:
+            - Show it in a messagebox
+            - Save it to a file
+        """
+
+        if not hasattr(self, 'df') or self.df.empty:
+            messagebox.showerror("Error", "No data to calculate IQR. Please filter the data first.")
+            return
+        
+        # Obtain only the PAQ columns
+        PAQs = sspy.surveys.return_paqs(self.df)
+        if PAQs.empty:
+            messagebox.showinfo("Information", "No PAQ columns found in the DataFrame.")
+            return
+        
+        Q3 = PAQs.quantile(0.75)
+        Q1 = PAQs.quantile(0.25)
+        IQR = Q3 - Q1
+
+        IQR = self.revert_from_PAQ(IQR)
+
+        # Capitalize the indexes
+        IQR.index = [emotion.capitalize() for emotion in IQR.index]
+        
+        # Popup        
+        popup = ctk.CTkToplevel()
+        popup.title("IRQ Values")
+        popup.geometry("450x450")
+
+        frame = ctk.CTkFrame(popup, corner_radius=15)
+        frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+        title = ctk.CTkLabel(frame, text="IRQ Values for each Emotion", font=ctk.CTkFont(size=18, weight="bold"))
+        title.pack(pady=(15, 5))
+
+        # Create an inner frame to center the table and keep it compact
+        inner_table_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        inner_table_frame.pack(pady=10, expand=True)
+
+        # Header
+        ctk.CTkLabel(inner_table_frame, text="Emotion", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=0, padx=5, pady=4, sticky="w")
+        ctk.CTkLabel(inner_table_frame, text="IQR", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=1, padx=5, pady=4, sticky="e")
+
+        # Rows
+        for idx, (emotion, value) in enumerate(IQR.items(), start=1):
+            emotion_label = ctk.CTkLabel(inner_table_frame, text=emotion.capitalize(), font=ctk.CTkFont(size=13), anchor="w")
+            value_label = ctk.CTkLabel(inner_table_frame, text=f"{value:.2f}", font=ctk.CTkFont(size=13), anchor="e")
+            emotion_label.grid(row=idx, column=0, padx=10, pady=2, sticky="w")
+            value_label.grid(row=idx, column=1, padx=10, pady=2, sticky="e")
+
+        # Buttons frame to place them in the same row
+        buttons_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        buttons_frame.pack(pady=(10, 15))
+        
+        ctk.CTkButton(buttons_frame, text="Exit", command=popup.destroy).pack(side="left", padx=5)
+        ctk.CTkButton(buttons_frame, text="Save IQR Values", command=lambda: self.save_df_to_file(pd.DataFrame(IQR).T, default_name=self.file_name + "_filtered_IQR")).pack(side="left", padx=5)
+
+    def save_df_to_file(self, df, default_name=None):
+        """Save the DataFrame to a file."""
+        filetypes = [
+            ("Excel files", "*.xls *.xlsx"),
+            ("CSV/TSF files", "*.csv *.tsv"),
+            ("OpenDocument Spreadsheet", "*.ods"),
+        ]
+        filepath = filedialog.asksaveasfilename(
+            title="Save Data",
+            filetypes=filetypes,
+            defaultextension=".xlsx",  # Default extension
+            initialfile=default_name + ".xlsx" if default_name else None,
+        )
+        if not filepath:
+            messagebox.showwarning("No File Selected", "Please select a file to save the Data.")
+            return self.save_df_to_file(df, default_name=default_name)
+        
+        if isinstance(df, pd.Series):
+            # Convert Series to DataFrame with index as a column
+            df = df.reset_index()
+            df.columns = ['Index', 'Value']  # Rename columns appropriately
+
+        try:
+            ext = os.path.splitext(filepath)[1].lower()
+            if ext == ".csv":
+                df.to_csv(filepath, index=False)
+            elif ext in [".xls", ".xlsx"]:
+                df.to_excel(filepath, index=False)
+            elif ext == ".tsv":
+                df.to_csv(filepath, sep="\t", index=False)
+            elif ext == ".ods":
+                df.to_excel(filepath, index=False, engine='odf')
+            else:
+                messagebox.showerror("Error", "Unsupported file format selected.")
+                return self.save_df_to_file(df, default_name=default_name)
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not save file:\n{e}")
+
+
+    def show_median(self):
+        """Calculate and show the median of the DF."""
+        if not hasattr(self, 'df') or self.df.empty:
+            messagebox.showerror("Error", "No data to calculate median. Please filter the data first.")
+            return
+        
+        # Obtain only the PAQ columns
+        PAQs = sspy.surveys.return_paqs(self.df)
+        if PAQs.empty:
+            messagebox.showinfo("Information", "No PAQ columns found in the DataFrame.")
+            return
+        
+        median = PAQs.median()
+
+        # Convert median to DataFrame for consistency
+        median = pd.DataFrame(median).T
+        median = sspy.surveys.add_iso_coords(median)
+
+
+
+        # Popup        
+        popup = ctk.CTkToplevel()
+        popup.title("Median Values")
+        popup.geometry("400x400")
+
+        frame = ctk.CTkFrame(popup, corner_radius=15)
+        frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+        title = ctk.CTkLabel(frame, text="Median Coordinates", font=ctk.CTkFont(size=18, weight="bold"))
+        title.pack(pady=(15, 5))
+
+        # Create an inner frame to center the table and keep it compact
+        inner_table_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        inner_table_frame.pack(pady=10, expand=True)
+
+        # Only show the ISO coordinates
+        median_iso = median[["ISOEventful", "ISOPleasant"]]
+        # Header
+        ctk.CTkLabel(inner_table_frame, text="ISOEventful", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=0, padx=5, pady=4, sticky="w")
+        ctk.CTkLabel(inner_table_frame, text="ISOPleasant", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=1, padx=5, pady=4, sticky="e")
+        # Rows
+        for idx, (eventful, pleasant) in enumerate(zip(median_iso["ISOEventful"], median_iso["ISOPleasant"]), start=1):
+            eventful_label = ctk.CTkLabel(inner_table_frame, text=f"{eventful:.5f}", font=ctk.CTkFont(size=13), anchor="w")
+            pleasant_label = ctk.CTkLabel(inner_table_frame, text=f"{pleasant:.5f}", font=ctk.CTkFont(size=13), anchor="e")
+            eventful_label.grid(row=idx, column=0, padx=10, pady=2, sticky="w")
+            pleasant_label.grid(row=idx, column=1, padx=10, pady=2, sticky="e")
+
+        # Buttons frame to place them in the same row
+        buttons_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        buttons_frame.pack(pady=(10, 15))
+
+        median = self.revert_from_PAQ(median)
+        median.columns = [col.capitalize() for col in median.columns]  # Capitalize the column names
+        
+        ctk.CTkButton(buttons_frame, text="Exit", command=popup.destroy).pack(side="left", padx=5)
+        ctk.CTkButton(buttons_frame, text="Save Median Values", command=lambda: self.save_df_to_file(median, default_name=self.file_name + "_filtered_median")).pack(side="left", padx=5)
+
+
+    def draw_median(self, plot_df, differentiation_column=None):
+        """Calculate and show the median of the DF."""
+        if not hasattr(self, 'df') or self.df.empty:
+            messagebox.showerror("Error", "No data to calculate median. Please filter the data first.")
+            return
+        
+        # Obtain the colors
+        if differentiation_column is not None:
+            unique_hue_values = plot_df[differentiation_column].dropna().unique()
+            n_colors = len(unique_hue_values)
+        else:
+            unique_hue_values = ["Default"]
+            n_colors = 1
+
+        palette = sns.color_palette(n_colors=n_colors)
+            
+        # Mapping: unique hue values to colors
+        color_mapping = dict(zip(sorted(unique_hue_values), palette))
+        
+        # Represent the median of each hue value
+        for value, color in color_mapping.items():
+
+            if differentiation_column is not None:
+                # Filter the DataFrame for the current hue value
+                hue_df = plot_df[plot_df[differentiation_column] == value]
+            else:
+                hue_df = plot_df
+            
+            PAQs = sspy.surveys.return_paqs(hue_df)
+            median = PAQs.median()
+            median = pd.DataFrame(median).T
+            median = sspy.surveys.add_iso_coords(median)
+            x = median["ISOEventful"].values[0]
+            y = median["ISOPleasant"].values[0]
+
+            # Add the median point to the plot (zorder=10 to appear on top)
+            plt.scatter(x, y, color=color, s=70, edgecolor='black', linewidth=2, zorder=10, alpha=0.9)
+        
+        
+        
         
 
 
@@ -1207,11 +1429,11 @@ class GUI(BasicWindow):
 
 
 if __name__ == "__main__":
+    app = None
     try:
         app = GUI()
         app.mainloop()
     except Exception as e:
-
         ERROR_MSG = f"ERROR DETECTED:\n\n{str(e)}\n\nTechnical details:\n{traceback.format_exc()}"
         try:
             root = ctk.CTk()  # Create a hidden root window for tkinter
@@ -1222,4 +1444,13 @@ if __name__ == "__main__":
             # If tkinter is not available, print the error to the console
             print("Could not show error message with tkinter. Printing to console instead.")
             print(ERROR_MSG)
-        exit(1)
+    finally:
+        # Cleanup on exit
+        try:
+            plt.close('all')
+            if app:
+                app.quit()
+        except Exception:
+            pass
+        import sys
+        sys.exit(0)
