@@ -1081,6 +1081,8 @@ class GUI(BasicWindow):
 
         if self.data_types == "emotions" and len(self.df) <= 3:
             values.append("Radar Plot")
+        if self.data_types == "emotions":
+            values.append("Empty")
 
         self.graph_type_selector = ctk.CTkOptionMenu(self, values=values, command=self.draw_graph)
         self.graph_type_selector.set("Graph Type")  # Default option
@@ -1177,6 +1179,34 @@ class GUI(BasicWindow):
                     plot_df = self.revert_from_PAQ(plot_df)
 
                     sspy.plotting.likert.paq_radar_plot(plot_df)
+            elif self.data_types == "emotions" \
+                and hasattr(self, 'draw_median_var') \
+                and self.draw_median_var.get() \
+                and graph_type in ["Empty"]:
+
+                # Empty DF - para solo mostrar las medianas sin puntos
+                empty_df = pd.DataFrame(columns=plot_df.columns)
+                
+                # Crear argumentos sin hue para evitar la advertencia
+                empty_args = {
+                    "title": title_label,
+                    "diagonal_lines": True,
+                    "color": "steelblue"  # Color fijo para evitar problemas con hue vacío
+                }
+                sspy.plotting.scatter_plot(empty_df, **empty_args)
+
+                # Legend manual con una entrada para cada valor en la columna de diferenciación
+                if differentiation_column is not None:
+                    unique_values = plot_df[differentiation_column].dropna().unique()
+                    # Crear handles de leyenda manualmente usando colors que coincidan con draw_median
+                    palette = sns.color_palette(n_colors=len(unique_values))
+                    color_mapping = dict(zip(sorted(unique_values), palette))
+                    
+                    for value, color in color_mapping.items():
+                        plt.plot([], [], 'o', color=color, label=str(value), markersize=8)
+                    plt.legend(title=differentiation_column)
+
+
             else:
                 messagebox.showerror("Error", "Unsupported graph type selected.")
 
