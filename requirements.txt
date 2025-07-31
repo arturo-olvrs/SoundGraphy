@@ -2,4 +2,4 @@ customtkinter
 pandas
 matplotlib
 seaborn
-soundscapy
+soundscapy==0.8.0rc5

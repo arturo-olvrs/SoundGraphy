@@ -250,6 +250,9 @@ class GUI(BasicWindow):
     
     # Class constant for maximum unique values threshold
     MAX_UNIQUES = 15
+
+    # Class constant for maximum rows to use Radar plot
+    MAX_RADAR_PLOT_ROWS = 7
     
     def __init__(self):
         super().__init__()
@@ -1092,9 +1095,9 @@ class GUI(BasicWindow):
         # Dropdown to select the type of graph
         self.graph_type_label = ctk.CTkLabel(self, text="Select the type of graph:")
         self.graph_type_label.pack(pady=10)
-        values = ["Scatter", "Density", "Density with Distribution", "Density only P50", "Density only P50 (lines)"]
+        values = ["Scatter", "Density", "Density only P50", "Density only P50 (lines)", "Density with Distribution", "Density only P50 with Distribution", "Density only P50 (lines) with Distribution"]
 
-        if self.data_types == "emotions" and len(self.df) <= 3:
+        if self.data_types == "emotions":
             values.append("Radar Plot")
         if self.data_types == "emotions":
             values.append("Empty")
@@ -1146,54 +1149,60 @@ class GUI(BasicWindow):
                 common_args["color"] = "steelblue"
 
             if graph_type == "Scatter":            
-                sspy.plotting.scatter_plot(plot_df, **common_args)
+                sspy.scatter(plot_df, **common_args)
 
             elif graph_type == "Density":
-                sspy.plotting.density_plot(plot_df, **common_args)
+                sspy.density(plot_df, **common_args)
 
             elif graph_type == "Density only P50":
-                sspy.plotting.density_plot(
+                sspy.density(
                     plot_df,
                     **common_args,
-                    incl_outline=True,
+                    density_type="simple",  # Use simple density type
                     incl_scatter=True,
-                    simple_density=True,
                 )
 
             elif graph_type == "Density only P50 (lines)":
-                sspy.plotting.density_plot(
+                sspy.density(
                     plot_df, 
                     **common_args,
-                    incl_outline=True,
-                    simple_density=True,
                     fill=False,
+                    incl_scatter=True,
+                    density_type="simple",  # Use simple density type
                 )
 
             elif graph_type == "Density with Distribution":
-                params_kwargs = {
-                    "hue": differentiation_column,
-                    "title": title_label,
-                    "diagonal_lines": True,
-                }
-
-                params = sspy.plotting.circumplex_plot.CircumplexPlotParams(**params_kwargs)
-                plot = sspy.plotting.circumplex_plot.CircumplexPlot(
-                    plot_df,
-                    backend=sspy.plotting.circumplex_plot.Backend.SEABORN,
-                    params=params,
+                sspy.jointplot(
+                    plot_df, 
+                    **common_args
                 )
-
-                plot.jointplot()
-
+            
+            elif graph_type == "Density only P50 with Distribution":
+                sspy.jointplot(
+                    plot_df, 
+                    **common_args,
+                    density_type="simple",  # Use simple density type
+                    incl_scatter=True,
+                )
+            
+            elif graph_type == "Density only P50 (lines) with Distribution":
+                sspy.jointplot(
+                    plot_df, 
+                    **common_args,
+                    fill=False,
+                    incl_scatter=True,
+                    density_type="simple",  # Use simple density type
+                )
+            
             elif graph_type == "Radar Plot" and self.data_types == "emotions":
                 # Check less than 3 rows
-                if len(plot_df) > 3:
-                    messagebox.showerror("Error", "Radar Plot requires less than 3 rows of data.")
+                if len(plot_df) > self.MAX_RADAR_PLOT_ROWS:
+                    messagebox.showerror("Error", f"Radar Plot requires less than {self.MAX_RADAR_PLOT_ROWS} rows of data.")
                 else:
                     # Revert from PAQ to emotions
                     plot_df = self.revert_from_PAQ(plot_df)
+                    sspy.paq_radar_plot(plot_df)
 
-                    sspy.plotting.likert.paq_radar_plot(plot_df)
             elif self.data_types == "emotions" \
                 and hasattr(self, 'draw_median_var') \
                 and self.draw_median_var.get() \
@@ -1208,7 +1217,7 @@ class GUI(BasicWindow):
                     "diagonal_lines": True,
                     "color": "steelblue"  # Color fijo para evitar problemas con hue vacío
                 }
-                sspy.plotting.scatter_plot(empty_df, **empty_args)
+                sspy.scatter(empty_df, **empty_args)
 
                 # Legend manual con una entrada para cada valor en la columna de diferenciación
                 if differentiation_column is not None:
@@ -1458,9 +1467,13 @@ class GUI(BasicWindow):
             x = median["ISOEventful"].values[0]
             y = median["ISOPleasant"].values[0]
 
-            # Add the median point to the plot (zorder=10 to appear on top)
-            plt.scatter(x, y, color=color, s=70, edgecolor='black', linewidth=2, zorder=10, alpha=0.9)
-        
+            # Add the median point to the plot
+            # Check if we're in a jointplot context (has multiple subplots)
+            fig = plt.gcf()
+            axes = fig.get_axes()
+            
+            main_ax = axes[0]
+            main_ax.scatter(x, y, color=color, s=70, edgecolor='black', linewidth=2, zorder=10, alpha=0.9)        
         
         
         
