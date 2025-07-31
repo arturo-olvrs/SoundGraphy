@@ -1098,8 +1098,8 @@ class GUI(BasicWindow):
         values = ["Scatter", "Density", "Density only P50", "Density only P50 (lines)", "Density with Distribution", "Density only P50 with Distribution", "Density only P50 (lines) with Distribution"]
 
         if self.data_types == "emotions":
+            values.append("Boxplot")
             values.append("Radar Plot")
-        if self.data_types == "emotions":
             values.append("Empty")
 
         self.graph_type_selector = ctk.CTkOptionMenu(self, values=values, command=self.draw_graph)
@@ -1193,6 +1193,38 @@ class GUI(BasicWindow):
                     incl_scatter=True,
                     density_type="simple",  # Use simple density type
                 )
+
+            elif graph_type == "Boxplot":
+                PAQs = plot_df
+                # Obtain only the PAQ columns and the differentiation column
+                PAQs = sspy.surveys.return_paqs(PAQs)
+                if differentiation_column is not None:
+                    PAQs = PAQs.join(plot_df[differentiation_column])
+                # Check if there are no PAQ columns
+                if PAQs.empty:
+                    messagebox.showerror("Error", "No PAQ columns found in the DataFrame.")
+                    return
+                # Revert from emotions to PAQ
+                PAQs = self.revert_from_PAQ(PAQs)
+
+                # Capitalize the columns
+                PAQs.columns = [emotion.capitalize() for emotion in PAQs.columns]
+                differentiation_column = differentiation_column.capitalize() if differentiation_column else None                
+            
+                PAQs_melted = PAQs.melt(id_vars=differentiation_column, var_name='Emotion', value_name='Value')
+
+                plt.figure(figsize=(10, 6))
+                sns.boxplot(
+                    x='Emotion',
+                    y='Value',
+                    data=PAQs_melted,
+                    hue=differentiation_column,
+                    gap=0.1,
+                    medianprops=dict(color='black', linewidth=2.5)
+                )
+                plt.xticks(rotation=45)
+                plt.title(title_label)
+                plt.tight_layout()
             
             elif graph_type == "Radar Plot" and self.data_types == "emotions":
                 # Check less than 3 rows
@@ -1238,7 +1270,7 @@ class GUI(BasicWindow):
             if self.data_types == "emotions" \
                 and hasattr(self, 'draw_median_var') \
                 and self.draw_median_var.get() \
-                and graph_type not in ["Radar Plot"]:
+                and graph_type not in ["Radar Plot", "Boxplot"]:
 
                 self.draw_median(plot_df, differentiation_column)
 
@@ -1246,6 +1278,7 @@ class GUI(BasicWindow):
             plt.show()
             
         except Exception as e:
+            print(f"Error drawing graph: {e}")
             messagebox.showerror("Error", f"Could not draw graph:\n{e}")
 
     def revert_from_PAQ(self, data):
