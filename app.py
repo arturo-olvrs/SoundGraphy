@@ -367,6 +367,16 @@ class GUI(BasicWindow):
             "Uneventful": "Q2.4",
             "Vibrant": "Q2.3"
         }
+        default_labels_after = {
+            "Annoying": "PAQ5",
+            "Calm": "PAQ8",
+            "Chaotic": "PAQ4",
+            "Eventful": "PAQ3",
+            "Monotonous": "PAQ6",
+            "Pleasant": "PAQ1",
+            "Uneventful": "PAQ7",
+            "Vibrant": "PAQ2"
+        }
 
         for emot in emotion_labels:
             frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -380,12 +390,12 @@ class GUI(BasicWindow):
             dropdown.pack(side="left", padx=5)
             if emot in previous_selections:
                 dropdown.set(previous_selections[emot])
+            elif default_labels[emot] in columns:
+                dropdown.set(default_labels[emot])
+            elif default_labels_after[emot] in columns:
+                dropdown.set(default_labels_after[emot])
             else:
-                # Set a default value if it exists in the DataFrame
-                if default_labels[emot] in columns:
-                    dropdown.set(default_labels[emot])
-                else:
-                    dropdown.set("Select a column")
+                dropdown.set("Select a column")
 
             self.emotion_selectors[emot] = dropdown
             
@@ -441,6 +451,11 @@ class GUI(BasicWindow):
             "Pleasant": "ISO_P",
             "Eventful": "ISO_E"
         }
+        # Default labels after renaming to PAQ
+        default_labels_after = {
+            "Pleasant": "ISOPleasant",
+            "Eventful": "ISOEventful"
+        }
         
         for pe in pe_labels:
             frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -452,12 +467,12 @@ class GUI(BasicWindow):
             dropdown.pack(side="left", padx=5)
             if pe in previous_selections:
                 dropdown.set(previous_selections[pe])
+            elif default_labels[pe] in columns:
+                dropdown.set(default_labels[pe])
+            elif default_labels_after[pe] in columns:
+                dropdown.set(default_labels_after[pe])
             else:
-                # Set a default value if it exists in the DataFrame
-                if default_labels[pe] in columns:
-                    dropdown.set(default_labels[pe])
-                else:
-                    dropdown.set("Select a column")
+                dropdown.set("Select a column")
             self.PE_selectors[pe] = dropdown
         
         self.confirm_pe_button = ctk.CTkButton(self, text="Filter Data", command=self.submit_pe)
