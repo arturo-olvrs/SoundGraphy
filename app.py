@@ -1113,6 +1113,9 @@ class GUI(BasicWindow):
         if not hasattr(self, 'df') or self.df.empty:
             messagebox.showerror("Error", "No data to visualize. Please filter the data first.")
             exit(1)
+
+        # Reset the value in the graph type selector
+        self.graph_type_selector.set("Graph Type")
         
         title_label = self.title_entry.get() if hasattr(self, 'title_entry') else "Filtered Data Visualization"
         differentiation_column = self.differentiation_selector.get() if hasattr(self, 'differentiation_selector') else None
@@ -1172,7 +1175,7 @@ class GUI(BasicWindow):
                 )
 
             elif graph_type == "Density with Distribution":
-                sspy.jointplot(
+                g = sspy.jointplot(
                     plot_df, 
                     **common_args
                 )
@@ -1224,7 +1227,6 @@ class GUI(BasicWindow):
                 )
                 plt.xticks(rotation=45)
                 plt.title(title_label)
-                plt.tight_layout()
             
             elif graph_type == "Radar Plot" and self.data_types == "emotions":
                 # Check less than 3 rows
@@ -1274,7 +1276,21 @@ class GUI(BasicWindow):
 
                 self.draw_median(plot_df, differentiation_column)
 
-            
+            # Get current axes safely and apply aspect ratio only to simple plots
+            try:
+                fig = plt.gcf()
+                axes = fig.get_axes()
+                
+                if len(axes) == 1:
+                    # Single axis - safe to set aspect equal
+                    ax = plt.gca()
+                    ax.set_aspect('equal')
+                else:
+                    print("Info: Skipping aspect ratio for jointplot to maintain proper alignment")
+            except Exception as e:
+                print(f"Warning: Could not set aspect ratio: {e}")
+
+            plt.tight_layout()
             plt.show()
             
         except Exception as e:
@@ -1319,31 +1335,50 @@ class GUI(BasicWindow):
         if not hasattr(self, 'df') or self.df.empty:
             messagebox.showerror("Error", "No data to calculate IQR. Please filter the data first.")
             return
-        
-        # Obtain only the PAQ columns
-        PAQs = sspy.surveys.return_paqs(self.df)
-        if PAQs.empty:
-            messagebox.showinfo("Information", "No PAQ columns found in the DataFrame.")
-            return
-        
-        Q3 = PAQs.quantile(0.75)
-        Q1 = PAQs.quantile(0.25)
-        IQR = Q3 - Q1
 
-        IQR = self.revert_from_PAQ(IQR)
+        differentiation_column = self.differentiation_selector.get() if hasattr(self, 'differentiation_selector') else None
+        if differentiation_column not in self.df.columns:
+            differentiation_column = None
 
-        # Capitalize the indexes
-        IQR.index = [emotion.capitalize() for emotion in IQR.index]
+        IQR = pd.DataFrame(columns=["Value"])
+
+        if differentiation_column is None:
+            sorted_values = [""] 
+        else:
+            unique_values = self.df[differentiation_column].dropna().unique()
+            sorted_values = sorted(unique_values)
+        
+        for value in sorted_values:
+            # Filter the DataFrame by the current value in the differentiation column
+            if differentiation_column is not None:
+                value_df = self.df[self.df[differentiation_column] == value]
+            else:
+                value_df = self.df
+            
+            PAQs_value = sspy.surveys.return_paqs(value_df)
+            Q3_value = PAQs_value.quantile(0.75)
+            Q1_value = PAQs_value.quantile(0.25)
+            IQR_value = Q3_value - Q1_value
+            IQR_value = pd.DataFrame(IQR_value).T
+
+            IQR_value = self.revert_from_PAQ(IQR_value)
+
+            IQR = pd.concat([IQR, IQR_value], ignore_index=True)
+            IQR.at[IQR.index[-1], 'Value'] = value  # Add the value of the differentiation column
+
+        # Capitalize the columns
+        IQR.columns = [emotion.capitalize() for emotion in IQR.columns]
+            
         
         # Popup        
         popup = ctk.CTkToplevel()
-        popup.title("IRQ Values")
-        popup.geometry("450x450")
+        popup.title("IQR Values")
+        popup.geometry("650x450")
 
         frame = ctk.CTkFrame(popup, corner_radius=15)
         frame.pack(padx=20, pady=20, fill="both", expand=True)
 
-        title = ctk.CTkLabel(frame, text="IRQ Values for each Emotion", font=ctk.CTkFont(size=18, weight="bold"))
+        title = ctk.CTkLabel(frame, text="IQR Values for each Emotion", font=ctk.CTkFont(size=18, weight="bold"))
         title.pack(pady=(15, 5))
 
         # Create an inner frame to center the table and keep it compact
@@ -1351,22 +1386,22 @@ class GUI(BasicWindow):
         inner_table_frame.pack(pady=10, expand=True)
 
         # Header
-        ctk.CTkLabel(inner_table_frame, text="Emotion", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=0, padx=5, pady=4, sticky="w")
-        ctk.CTkLabel(inner_table_frame, text="IQR", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=1, padx=5, pady=4, sticky="e")
+        emotions = ["Pleasant", "Vibrant", "Eventful", "Chaotic", "Annoying", "Monotonous", "Uneventful", "Calm"]
+        for idx, emotion in enumerate(emotions, start=1):
+            ctk.CTkLabel(inner_table_frame, text=emotion.capitalize(), font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=idx, padx=5, pady=4, sticky="w")
 
-        # Rows
-        for idx, (emotion, value) in enumerate(IQR.items(), start=1):
-            emotion_label = ctk.CTkLabel(inner_table_frame, text=emotion.capitalize(), font=ctk.CTkFont(size=13), anchor="w")
-            value_label = ctk.CTkLabel(inner_table_frame, text=f"{value:.2f}", font=ctk.CTkFont(size=13), anchor="e")
-            emotion_label.grid(row=idx, column=0, padx=10, pady=2, sticky="w")
-            value_label.grid(row=idx, column=1, padx=10, pady=2, sticky="e")
-
+        for idy in range(1, len(sorted_values) + 1):
+            ctk.CTkLabel(inner_table_frame, text=sorted_values[idy - 1], font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=idy, column=0, padx=5, pady=4, sticky="w")
+            for idx, emotion in enumerate(emotions, start=1):
+                value = IQR.at[IQR.index[idy - 1], emotion]
+                ctk.CTkLabel(inner_table_frame, text=f"{value:.0f}", font=ctk.CTkFont(size=13), anchor="e").grid(row=idy, column=idx, padx=10, pady=2, sticky="e")
+        
         # Buttons frame to place them in the same row
         buttons_frame = ctk.CTkFrame(frame, fg_color="transparent")
         buttons_frame.pack(pady=(10, 15))
         
         ctk.CTkButton(buttons_frame, text="Exit", command=popup.destroy).pack(side="left", padx=5)
-        ctk.CTkButton(buttons_frame, text="Save IQR Values", command=lambda: self.save_df_to_file(pd.DataFrame(IQR).T, default_name=self.file_name + "_filtered_IQR")).pack(side="left", padx=5)
+        ctk.CTkButton(buttons_frame, text="Save IQR Values", command=lambda: self.save_df_to_file(IQR, default_name=self.file_name + "_filtered_IQR")).pack(side="left", padx=5)
 
     def save_df_to_file(self, df, default_name=None):
         """Save the DataFrame to a file."""
@@ -1412,20 +1447,34 @@ class GUI(BasicWindow):
         if not hasattr(self, 'df') or self.df.empty:
             messagebox.showerror("Error", "No data to calculate median. Please filter the data first.")
             return
-        
-        # Obtain only the PAQ columns
-        PAQs = sspy.surveys.return_paqs(self.df)
-        if PAQs.empty:
-            messagebox.showinfo("Information", "No PAQ columns found in the DataFrame.")
-            return
-        
-        median = PAQs.median()
+    
+        differentiation_column = self.differentiation_selector.get() if hasattr(self, 'differentiation_selector') else None
+        if differentiation_column not in self.df.columns:
+            differentiation_column = None
 
-        # Convert median to DataFrame for consistency
-        median = pd.DataFrame(median).T
+        median = pd.DataFrame(columns=["Value"])
+
+
+        if differentiation_column is None:
+            sorted_values = [""] 
+        else:
+            unique_values = self.df[differentiation_column].dropna().unique()
+            sorted_values = sorted(unique_values)
+
+        for value in sorted_values:
+            if differentiation_column is None:
+                value_df = self.df
+            else:
+                value_df = self.df[self.df[differentiation_column] == value]
+            PAQs_value = sspy.surveys.return_paqs(value_df)
+            median_value = PAQs_value.median()
+            median_value = pd.DataFrame(median_value).T
+
+            median = pd.concat([median, median_value], ignore_index=True)
+            median.at[median.index[-1], "Value"] = value  # Set the differentiation column value
+
+        
         median = sspy.surveys.add_iso_coords(median)
-
-
 
         # Popup        
         popup = ctk.CTkToplevel()
@@ -1442,17 +1491,18 @@ class GUI(BasicWindow):
         inner_table_frame = ctk.CTkFrame(frame, fg_color="transparent")
         inner_table_frame.pack(pady=10, expand=True)
 
-        # Only show the ISO coordinates
-        median_iso = median[["ISOEventful", "ISOPleasant"]]
         # Header
-        ctk.CTkLabel(inner_table_frame, text="ISOEventful", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=0, padx=5, pady=4, sticky="w")
-        ctk.CTkLabel(inner_table_frame, text="ISOPleasant", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=1, padx=5, pady=4, sticky="e")
+        ctk.CTkLabel(inner_table_frame, text="ISOPleasant", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=1, padx=5, pady=4)
+        ctk.CTkLabel(inner_table_frame, text="ISOEventful", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=2, padx=5, pady=4)
+        
         # Rows
-        for idx, (eventful, pleasant) in enumerate(zip(median_iso["ISOEventful"], median_iso["ISOPleasant"]), start=1):
-            eventful_label = ctk.CTkLabel(inner_table_frame, text=f"{eventful:.5f}", font=ctk.CTkFont(size=13), anchor="w")
-            pleasant_label = ctk.CTkLabel(inner_table_frame, text=f"{pleasant:.5f}", font=ctk.CTkFont(size=13), anchor="e")
-            eventful_label.grid(row=idx, column=0, padx=10, pady=2, sticky="w")
+        for idx, (value, pleasant, eventful) in enumerate(zip(median["Value"], median["ISOPleasant"], median["ISOEventful"]), start=1):
+            value_label    = ctk.CTkLabel(inner_table_frame, text=str(value),        font=ctk.CTkFont(size=13), anchor="center")
+            pleasant_label = ctk.CTkLabel(inner_table_frame, text=f"{pleasant:.4f}", font=ctk.CTkFont(size=13), anchor="center")
+            eventful_label = ctk.CTkLabel(inner_table_frame, text=f"{eventful:.4f}", font=ctk.CTkFont(size=13), anchor="center")
+            value_label.grid(row=idx, column=0, padx=10, pady=2, sticky="w")
             pleasant_label.grid(row=idx, column=1, padx=10, pady=2, sticky="e")
+            eventful_label.grid(row=idx, column=2, padx=10, pady=2, sticky="e")
 
         # Buttons frame to place them in the same row
         buttons_frame = ctk.CTkFrame(frame, fg_color="transparent")
@@ -1497,8 +1547,8 @@ class GUI(BasicWindow):
             median = PAQs.median()
             median = pd.DataFrame(median).T
             median = sspy.surveys.add_iso_coords(median)
-            x = median["ISOEventful"].values[0]
-            y = median["ISOPleasant"].values[0]
+            y = median["ISOEventful"].values[0]
+            x = median["ISOPleasant"].values[0]
 
             # Add the median point to the plot
             # Check if we're in a jointplot context (has multiple subplots)
