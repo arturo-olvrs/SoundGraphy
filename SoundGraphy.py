@@ -189,7 +189,7 @@ class BasicWindow(ctk.CTk):
     """Basic window class for the SoundScape application."""
     def __init__(self):
         super().__init__()
-        self.title("SoundScape GUI")
+        self.title("SoundGraphy GUI")
         self.minsize(400, 300)
 
         width = int(self.winfo_screenwidth()/2)
@@ -257,7 +257,7 @@ class GUI(BasicWindow):
         super().__init__()
         self.df = None  # DataFrame to hold the loaded data             
 
-        self.label = ctk.CTkLabel(self, text="Welcome to SoundScape GUI!\nCreate ISO 12913-3 compliant graphics.", font=FONT)
+        self.label = ctk.CTkLabel(self, text="Welcome to SoundGraphy GUI!\nCreate ISO 12913-3 compliant graphics.", font=FONT)
         self.label.pack(pady=30)
 
         self.select_doc_button = ctk.CTkButton(self, text="Select Document", command=self.open_select_doc)
