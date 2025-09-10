@@ -5,6 +5,8 @@ import traceback
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import pandas as pd
+import numpy as np
+from scipy.optimize import curve_fit
 import soundscapy as sspy
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -274,6 +276,10 @@ class GUI(BasicWindow):
         self.mode_selector.set("System")    # Default mode
         self.mode_selector.pack()
 
+        # Label at footer
+        footer_label = ctk.CTkLabel(self, text="Soundscape, Health & Heritage (SHH) Group - University of Granada (UGR)\nDeveloped by Arturo Olivares Martos", font=("Arial", 12))
+        footer_label.pack(side="bottom", pady=10)
+
     def change_mode(self, mode):
         """Change the appearance mode of the application."""
         ctk.set_appearance_mode(mode)
@@ -420,7 +426,7 @@ class GUI(BasicWindow):
         # Convert the DataFrame to PAQ format
         try:
             self.df = sspy.surveys.rename_paqs(self.df)
-            self.df = sspy.surveys.add_iso_coords(self.df)
+            self.df = sspy.surveys.add_iso_coords(self.df, overwrite=True)
         except Exception as e:
             messagebox.showerror("Processing Error", f"Error processing emotions:\n{e}")
             return self.handle_emotions()
@@ -1054,6 +1060,9 @@ class GUI(BasicWindow):
             
             self.median_button = ctk.CTkButton(statistics_frame, text="Median", command=lambda: self.show_median())
             self.median_button.pack(side="left", padx=5)
+
+            self.ssm_button = ctk.CTkButton(statistics_frame, text="SSM Metrics", command=lambda: self.show_ssm_metrics())
+            self.ssm_button.pack(side="left", padx=5)
         
         # Column to differentiate by
         frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -1094,11 +1103,12 @@ class GUI(BasicWindow):
         # Dropdown to select the type of graph
         self.graph_type_label = ctk.CTkLabel(self, text="Select the type of graph:")
         self.graph_type_label.pack(pady=10)
-        values = ["Scatter", "Density", "Density only P50", "Density only P50 (lines)", "Density with Distribution", "Density only P50 with Distribution", "Density only P50 (lines) with Distribution"]
+        values = ["Scatter", "Density", "Density only P50", "Density only P50 (lines)", "Density with Distribution", "Density only P50 with Distribution", "Density only P50 (lines) with Distribution", "Personalized Boxplot"]
 
         if self.data_types == "emotions":
-            values.append("Boxplot")
+            values.append("Classic Boxplot")
             values.append("Radar Plot")
+            values.append("SSM Fitting")
             values.append("Empty")
 
         self.graph_type_selector = ctk.CTkOptionMenu(self, values=values, command=self.draw_graph)
@@ -1196,7 +1206,7 @@ class GUI(BasicWindow):
                     density_type="simple",  # Use simple density type
                 )
 
-            elif graph_type == "Boxplot":
+            elif graph_type == "Classic Boxplot":
                 PAQs = plot_df
                 # Obtain only the PAQ columns and the differentiation column
                 PAQs = sspy.surveys.return_paqs(PAQs)
@@ -1229,6 +1239,129 @@ class GUI(BasicWindow):
                 )
                 plt.xticks(rotation=45)
                 plt.title(title_label)
+
+            elif graph_type == "Personalized Boxplot":
+
+                # Popup        
+                popup = ctk.CTkToplevel()
+                popup.title("Personalized Boxplot")
+                popup.geometry("600x300")
+
+                frame = ctk.CTkFrame(popup, corner_radius=15)
+                frame.pack(padx=20, pady=10, fill="both", expand=True)
+
+                title = ctk.CTkLabel(frame, text="Personalized Boxplot", font=ctk.CTkFont(size=18, weight="bold"))
+                title.pack(pady=(15, 5))
+
+                y_values = list(self.df.columns)
+                x_values = list(self.df.columns)
+                to_delete = ["ISOPleasant", "ISOEventful"]
+                for i in range(1,9):
+                    to_delete.append(f"PAQ{i}")
+                for col in x_values:
+                    # If it has more than MAX_UNIQUES, remove it
+                    if self.df[col].nunique() > self.MAX_UNIQUES:
+                        to_delete.append(col)
+                for col in to_delete:
+                    if col in x_values:
+                        x_values.remove(col)
+
+                # Entry for X Axis
+                center_frame = ctk.CTkFrame(frame, fg_color="transparent")
+                center_frame.pack(pady=10)
+
+                self.x_axis_selector = CustomFiltering(center_frame, values=x_values, default_text="X Axis")
+                self.x_axis_selector_label = ctk.CTkLabel(center_frame, text="Select the column for the X Axis:")
+                self.x_axis_selector_label.pack(side="left", padx=5)
+                self.x_axis_selector.pack(side="left", padx=5)
+
+                # Entry for Y Axis
+                center_frame = ctk.CTkFrame(frame, fg_color="transparent")
+                center_frame.pack(pady=10)  # expand=True centers the frame
+                self.y_axis_selector = CustomFiltering(center_frame, values=y_values, default_text="Y Axis")
+                self.y_axis_selector_label = ctk.CTkLabel(center_frame, text="Select the column for the Y Axis:")
+                self.y_axis_selector_label.pack(side="left", padx=5)
+                self.y_axis_selector.pack(side="left", padx=5)
+
+
+                # Buttons frame to place them in the same row
+                buttons_frame = ctk.CTkFrame(frame, fg_color="transparent")
+                buttons_frame.pack(pady=(10, 15))
+                
+                ctk.CTkButton(buttons_frame, text="Exit", command=popup.destroy).pack(side="left", padx=5)
+                ctk.CTkButton(buttons_frame, text="Plot", command=lambda: self.plot_personalized_boxplot(differentiation_column)).pack(side="left", padx=5)
+
+
+            elif graph_type == "SSM Fitting" and self.data_types == "emotions":
+                
+                merged_df = self.obtain_ssm_metrics()
+
+                equal_angles = (0, 45, 90, 135, 180, 225, 270, 315)
+                emotions = ["Pleasant", "Vibrant", "Eventful", "Chaotic", "Annoying", "Monotonous", "Uneventful", "Calm"]
+
+
+                merged_df = self.revert_from_PAQ(merged_df)
+                # Capitalize the columns
+                merged_df.columns = [col.capitalize() for col in merged_df.columns]
+                
+                
+                x_label = 'PAQ model dimension'
+                y_label = ''
+                plt.figure(figsize=(12, 8))
+                plt.title(title_label, fontsize=16, fontweight='bold')
+                plt.xlabel(x_label, fontsize=14)
+                plt.ylabel(y_label, fontsize=14)
+
+                # Generate colors for each row (group)
+                n_groups = len(merged_df)
+                colors = sns.color_palette("husl", n_groups) if n_groups > 1 else ['steelblue']
+
+
+
+
+                for index, (row_idx, row) in enumerate(merged_df.iterrows()):
+                    color = colors[index]
+                    
+                    # Get real values for each emotion
+                    real_values = [row[emotion] for emotion in emotions]
+                    
+                    # Calculate fitted values using SSM model
+                    fitted_values = []
+                    for angle_idx, emotion in enumerate(emotions):
+                        fitted_value = ssm_model(
+                            equal_angles[angle_idx], 
+                            row["Amplitude"],
+                            row["Displacement"],
+                            row["Elevation"]
+                        )
+                        fitted_values.append(fitted_value)
+                    
+                    # Plot real values with solid line
+                    plt.plot(emotions, real_values, 
+                            color=color, 
+                            linestyle='-', 
+                            linewidth=2, 
+                            marker='s', 
+                            markersize=6,
+                            label=f'Real - {row["Value"]}' if differentiation_column else 'Real values')
+                    
+                    # Plot fitted values with dashed line
+                    plt.plot(emotions, fitted_values, 
+                            color=color, 
+                            linestyle='--', 
+                            linewidth=2, 
+                            marker='o',
+                            markerfacecolor='none',   # <-- evita que el relleno del marker tape la línea
+                            markersize=6,
+                            label=f'Fitted - {row["Value"]}' if differentiation_column else 'Fitted values')
+                
+                # Customize the plot
+                plt.xticks(rotation=45, ha='right')
+                plt.grid(True, linestyle='--', alpha=0.7)
+
+                # Show legend
+                plt.legend()
+                
             
             elif graph_type == "Radar Plot" and self.data_types == "emotions":
                 # Check less than MAX_RADAR_PLOT_ROWS rows
@@ -1237,7 +1370,7 @@ class GUI(BasicWindow):
                 else:
                     # Revert from PAQ to emotions
                     plot_df = self.revert_from_PAQ(plot_df)
-                    sspy.paq_radar_plot(plot_df)
+                    sspy.paq_radar_plot(plot_df, title=title_label, index=differentiation_column)
 
             elif self.data_types == "emotions" \
                 and hasattr(self, 'draw_median_var') \
@@ -1274,35 +1407,130 @@ class GUI(BasicWindow):
             if self.data_types == "emotions" \
                 and hasattr(self, 'draw_median_var') \
                 and self.draw_median_var.get() \
-                and graph_type not in ["Radar Plot", "Boxplot"]:
+                and graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting", "Personalized Boxplot"]:
 
                 self.draw_median(plot_df, differentiation_column)
 
             # Get current axes safely and apply aspect ratio only to simple plots
-            try:
-                fig = plt.gcf()
-                axes = fig.get_axes()
-                
-                if len(axes) == 1:
-                    # Single axis - safe to set aspect equal
+            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting", "Personalized Boxplot"]:
+                try:
+                    fig = plt.gcf()
+                    axes = fig.get_axes()
+                    
+                    if len(axes) == 1:
+                        # Single axis - safe to set aspect equal
+                        ax = plt.gca()
+                        ax.set_aspect('equal')
+                    else:
+                        print("Info: Skipping aspect ratio for jointplot to maintain proper alignment")
+                except Exception as e:
+                    print(f"Warning: Could not set aspect ratio: {e}")
+
+            if graph_type not in ["Personalized Boxplot"]:
+                # Only show legend if there are labeled elements to display
+                try:
+                    fig = plt.gcf()
                     ax = plt.gca()
-                    ax.set_aspect('equal')
-                else:
-                    print("Info: Skipping aspect ratio for jointplot to maintain proper alignment")
-            except Exception as e:
-                print(f"Warning: Could not set aspect ratio: {e}")
+                    
+                    # Check if there are any labeled elements (handles and labels)
+                    handles, labels = ax.get_legend_handles_labels()
+                    
+                    if handles and labels:
+                        # There are elements with labels, show the legend
+                        legend = plt.legend(loc='best')
+                        renderer = fig.canvas.get_renderer() if hasattr(fig.canvas, 'get_renderer') else None
 
-            main_ax = axes[0]
-            if main_ax.get_legend():
-                main_ax.legend(bbox_to_anchor=(-0.20, 1), loc='upper right')
-
-            plt.tick_params(axis='both', labelsize=7)
-            plt.tight_layout()
-            plt.show()
+                        if renderer:
+                            try:
+                                legend_bbox = legend.get_window_extent(renderer)
+                                plot_bbox = ax.get_window_extent(renderer)
+                                
+                                # Calculate overlap ratio - fix the intersection call
+                                if legend_bbox and plot_bbox:
+                                    # Convert to the same coordinate system if needed
+                                    legend_bounds = legend_bbox.bounds  # (x0, y0, width, height)
+                                    plot_bounds = plot_bbox.bounds      # (x0, y0, width, height)
+                                    
+                                    # Calculate intersection manually
+                                    x_left = max(legend_bounds[0], plot_bounds[0])
+                                    y_bottom = max(legend_bounds[1], plot_bounds[1])
+                                    x_right = min(legend_bounds[0] + legend_bounds[2], plot_bounds[0] + plot_bounds[2])
+                                    y_top = min(legend_bounds[1] + legend_bounds[3], plot_bounds[1] + plot_bounds[3])
+                                    
+                                    if x_right > x_left and y_top > y_bottom:
+                                        # There is an intersection
+                                        intersection_area = (x_right - x_left) * (y_top - y_bottom)
+                                        legend_area = legend_bounds[2] * legend_bounds[3]
+                                        overlap_ratio = intersection_area / legend_area if legend_area > 0 else 0
+                                        
+                                        # If more than 30% of legend overlaps with plot area, move outside
+                                        if overlap_ratio > 0.3:
+                                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                                    # If no intersection, legend is fine where it is
+                            except Exception as bbox_error:
+                                print(f"Warning: Could not calculate bbox intersection: {bbox_error}")
+                                # Fallback to outside placement
+                                plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                        else:
+                            # Fallback: if we can't get renderer, place outside
+                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                        
+                except Exception as e:
+                    # If anything fails, use simple outside placement
+                    try:
+                        fig = plt.gcf()
+                        ax = plt.gca()
+                        handles, labels = ax.get_legend_handles_labels()
+                        if handles and labels:
+                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                    except:
+                        pass  # Just don't show legend if everything fails
+                
+                plt.tick_params(axis='both', labelsize=7)
+                plt.tight_layout()
+                plt.show()
             
         except Exception as e:
             print(f"Error drawing graph: {e}")
             messagebox.showerror("Error", f"Could not draw graph:\n{e}")
+
+    def plot_personalized_boxplot(self, differentiation_column=None):
+        """Plot the personalized boxplot based on user selections."""
+        x_column = self.x_axis_selector.get() if hasattr(self, 'x_axis_selector') else None
+        y_column = self.y_axis_selector.get() if hasattr(self, 'y_axis_selector') else None
+
+        if x_column not in self.df.columns or y_column not in self.df.columns:
+            messagebox.showerror("Error", "Both X and Y axis columns must be selected and valid.")
+            return
+
+        if x_column == y_column:
+            messagebox.showerror("Error", "X and Y axis columns must be different.")
+            return
+
+        # Create a copy of the DataFrame for plotting to avoid modifying the original
+        plot_df = self.df.copy()
+        # Get unique values from x_column and sort them
+        x_order = sorted(plot_df[x_column].dropna().unique())
+
+        
+        sns.boxplot(
+            x=x_column,
+            y=y_column,
+            data=plot_df,
+            order=x_order,  # This will sort the x-axis values
+            hue=differentiation_column,
+            gap=0.1,
+            medianprops=dict(color='black', linewidth=2.5)
+        )
+        plt.xticks(rotation=45)
+        title_label = self.title_entry.get() if hasattr(self, 'title_entry') else "Filtered Data Visualization"
+        plt.title(title_label)
+
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+
+
+        plt.tight_layout()
+        plt.show()
 
     def revert_from_PAQ(self, data):
         """Revert the DataFrame from PAQ columns to emotions."""
@@ -1424,8 +1652,8 @@ class GUI(BasicWindow):
             initialfile=default_name + ".xlsx" if default_name else None,
         )
         if not filepath:
-            messagebox.showwarning("No File Selected", "Please select a file to save the Data.")
-            return self.save_df_to_file(df, default_name=default_name)
+            # User cancelled the save dialog
+            return
         
         if isinstance(df, pd.Series):
             # Convert Series to DataFrame with index as a column
@@ -1448,9 +1676,12 @@ class GUI(BasicWindow):
         except Exception as e:
             messagebox.showerror("Error", f"Could not save file:\n{e}")
 
-
-    def show_median(self):
-        """Calculate and show the median of the DF."""
+    def obtain_median(self):
+        """Calculate the median of the DF.
+        
+        Returns:
+            median (pd.DataFrame): DataFrame with the median values.
+        """
         if not hasattr(self, 'df') or self.df.empty:
             messagebox.showerror("Error", "No data to calculate median. Please filter the data first.")
             return
@@ -1482,6 +1713,15 @@ class GUI(BasicWindow):
 
         
         median = sspy.surveys.add_iso_coords(median)
+        return median
+
+    def show_median(self):
+        """Show the median of each PAQ and:
+            - Show it in a messagebox
+            - Save it to a file
+        """
+        median = self.obtain_median()
+        
 
         # Popup        
         popup = ctk.CTkToplevel()
@@ -1564,8 +1804,104 @@ class GUI(BasicWindow):
             
             main_ax = axes[0]
             main_ax.scatter(x, y, color=color, s=70, edgecolor='black', linewidth=2, zorder=10, alpha=0.9)        
+
+    
+    def obtain_ssm_metrics(self):
+        """Calculate the SSM metrics of the DF.
         
+        Returns:
+            ssm_metrics (pd.DataFrame): DataFrame with the SSM metrics.
+        """
+        median = self.obtain_median()
+        SSM_metrics = sspy.surveys.processing.ssm_metrics(median)
+
+        # Fixing bugs in sspy "ssm_metrics" function
+        SSM_metrics["elevation"] = SSM_metrics["elevation"] + SSM_metrics["displacement"]
+        SSM_metrics.drop(columns=["displacement"], inplace=True)
+
+        SSM_metrics.rename(columns={"angle": "displacement"}, inplace=True)
+
+
+
+        # Check. Equal number of rows?
+        if len(SSM_metrics) != len(median):
+            messagebox.showerror("Error", "SSM metrics and median have different number of rows.")
+            return
         
+        # Merge the two DataFrames on their indices
+        merged_df = pd.merge(median, SSM_metrics, left_index=True, right_index=True, suffixes=('_median', '_ssm'))
+
+        return merged_df
+
+    
+    def show_ssm_metrics(self):
+        """Show the SSM metrics and:
+            - Show it in a messagebox
+            - Save it to a file
+        """
+        merged_df = self.obtain_ssm_metrics()
+        
+
+        # Popup        
+        popup = ctk.CTkToplevel()
+        popup.title("SSM Metrics")
+        popup.geometry("400x400")
+
+        frame = ctk.CTkFrame(popup, corner_radius=15)
+        frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+        title = ctk.CTkLabel(frame, text="SSM Cosine Fitting Metrics", font=ctk.CTkFont(size=18, weight="bold"))
+        title.pack(pady=(15, 5))
+
+        # Create an inner frame to center the table and keep it compact
+        inner_table_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        inner_table_frame.pack(pady=10, expand=True)
+
+        # Header
+        ctk.CTkLabel(inner_table_frame, text="Amplitude", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=1, padx=5, pady=4)
+        ctk.CTkLabel(inner_table_frame, text="Elevation", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=2, padx=5, pady=4)
+        ctk.CTkLabel(inner_table_frame, text="Displacement", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=3, padx=5, pady=4)
+        ctk.CTkLabel(inner_table_frame, text="R^2", font=ctk.CTkFont(size=14, weight="bold"), anchor="center").grid(row=0, column=4, padx=5, pady=4)
+        
+        # Rows
+        for idx, (value, amplitude, elevation, displacement, r_squared) in enumerate(zip(merged_df["Value"], merged_df["amplitude"], merged_df["elevation"], merged_df["displacement"], merged_df["r_squared"]), start=1):
+            value_label        = ctk.CTkLabel(inner_table_frame, text=str(value),        font=ctk.CTkFont(size=13), anchor="center")
+            amplitude_label    = ctk.CTkLabel(inner_table_frame, text=f"{amplitude:.2f}", font=ctk.CTkFont(size=13), anchor="center")
+            elevation_label    = ctk.CTkLabel(inner_table_frame, text=f"{elevation:.2f}", font=ctk.CTkFont(size=13), anchor="center")
+            displacement_label = ctk.CTkLabel(inner_table_frame, text=f"{displacement:.2f}", font=ctk.CTkFont(size=13), anchor="center")
+            r_squared_label    = ctk.CTkLabel(inner_table_frame, text=f"{r_squared:.4f}", font=ctk.CTkFont(size=13), anchor="center")
+            value_label.grid(row=idx, column=0, padx=10, pady=2, sticky="w")
+            amplitude_label.grid(row=idx, column=1, padx=10, pady=2, sticky="e")
+            elevation_label.grid(row=idx, column=2, padx=10, pady=2, sticky="e")
+            displacement_label.grid(row=idx, column=3, padx=10, pady=2, sticky="e")
+            r_squared_label.grid(row=idx, column=4, padx=10, pady=2, sticky="e")
+
+        # Buttons frame to place them in the same row
+        buttons_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        buttons_frame.pack(pady=(10, 15))
+
+        merged_df = self.revert_from_PAQ(merged_df)
+        merged_df.columns = [col.capitalize() for col in merged_df.columns]  # Capitalize the column names
+        
+        ctk.CTkButton(buttons_frame, text="Exit", command=popup.destroy).pack(side="left", padx=5)
+        ctk.CTkButton(buttons_frame, text="Save SSM Metrics", command=lambda: self.save_df_to_file(merged_df, default_name=self.file_name + "_filtered_ssm_metrics")).pack(side="left", padx=5)
+        
+
+
+# ---- SSM Cosine Fitting ----
+def ssm_model(theta, amp, dis, elev):
+    """SSM model to fit the data.
+    
+    Args:
+        theta (float): Angle in degrees.
+        amp (float): Amplitude.
+        dis (float): Displacement.
+        elev (float): Elevation.
+    
+    Returns:
+        float: Fitted value.
+    """
+    return elev + amp * np.cos(np.radians(theta - dis))
         
 
 
