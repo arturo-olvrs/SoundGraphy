@@ -259,7 +259,7 @@ class GUI(BasicWindow):
         super().__init__()
         self.df = None  # DataFrame to hold the loaded data             
 
-        self.label = ctk.CTkLabel(self, text="Welcome to SoundGraphy GUI!\nCreate ISO 12913-3 compliant graphics.", font=FONT)
+        self.label = ctk.CTkLabel(self, text="Welcome to SoundGraphy GUI!\nCreate ISO 12913-3 compliant graphics", font=FONT)
         self.label.pack(pady=30)
 
         self.select_doc_button = ctk.CTkButton(self, text="Select Document", command=self.open_select_doc)
@@ -277,8 +277,10 @@ class GUI(BasicWindow):
         self.mode_selector.pack()
 
         # Label at footer
-        footer_label = ctk.CTkLabel(self, text="Soundscape, Health & Heritage (SHH) Group - University of Granada (UGR)\nDeveloped by Arturo Olivares Martos", font=("Arial", 12))
-        footer_label.pack(side="bottom", pady=10)
+        footer_label = ctk.CTkLabel(self, text="Soundscape, Health & Heritage (SHH) Group\nUniversity of Granada (UGR)", font=ctk.CTkFont(family="Arial", size=12, weight="bold"))
+        author_label = ctk.CTkLabel(self, text="Developed by Arturo Olivares Martos", font=ctk.CTkFont(family="Arial", size=12, weight="bold", slant="italic"))
+        author_label.pack(side="bottom", pady=(0,10))
+        footer_label.pack(side="bottom", pady=(10,0))
 
     def change_mode(self, mode):
         """Change the appearance mode of the application."""
