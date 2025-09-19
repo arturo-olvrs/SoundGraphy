@@ -1358,9 +1358,6 @@ class GUI(BasicWindow):
                 # Customize the plot
                 plt.xticks(rotation=45, ha='right')
                 plt.grid(True, linestyle='--', alpha=0.7)
-
-                # Show legend
-                plt.legend()
                 
             
             elif graph_type == "Radar Plot" and self.data_types == "emotions":
@@ -1397,7 +1394,6 @@ class GUI(BasicWindow):
                     
                     for value, color in color_mapping.items():
                         plt.plot([], [], 'o', color=color, label=str(value), markersize=8)
-                    plt.legend(title=differentiation_column)
 
 
             else:
@@ -1437,7 +1433,7 @@ class GUI(BasicWindow):
                     
                     if handles and labels:
                         # There are elements with labels, show the legend
-                        legend = plt.legend(loc='best')
+                        legend = plt.legend(loc='best', title=differentiation_column if differentiation_column else None)
                         renderer = fig.canvas.get_renderer() if hasattr(fig.canvas, 'get_renderer') else None
 
                         if renderer:
@@ -1465,15 +1461,17 @@ class GUI(BasicWindow):
                                         
                                         # If more than 30% of legend overlaps with plot area, move outside
                                         if overlap_ratio > 0.3:
-                                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column if differentiation_column else None)
+                                            print("Info: Moved legend outside due to overlap")
                                     # If no intersection, legend is fine where it is
                             except Exception as bbox_error:
                                 print(f"Warning: Could not calculate bbox intersection: {bbox_error}")
                                 # Fallback to outside placement
-                                plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                                plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column if differentiation_column else None)
                         else:
                             # Fallback: if we can't get renderer, place outside
-                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column if differentiation_column else None)
+                            print("Warning: Could not get renderer for legend placement.")
                         
                 except Exception as e:
                     # If anything fails, use simple outside placement
@@ -1482,7 +1480,8 @@ class GUI(BasicWindow):
                         ax = plt.gca()
                         handles, labels = ax.get_legend_handles_labels()
                         if handles and labels:
-                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column if differentiation_column else None)
+                            print(f"Warning: Could not place legend optimally, placed outside instead: {e}")
                     except:
                         pass  # Just don't show legend if everything fails
                 
@@ -1526,7 +1525,8 @@ class GUI(BasicWindow):
         title_label = self.title_entry.get() if hasattr(self, 'title_entry') else "Filtered Data Visualization"
         plt.title(title_label)
 
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        if differentiation_column is not None:
+            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column)
 
 
         plt.tight_layout()
@@ -1555,8 +1555,10 @@ class GUI(BasicWindow):
         
         # Check if it's a DataFrame or Series and handle accordingly
         if isinstance(data, pd.DataFrame):
+            data = data.copy()
             data.rename(columns=PAQ_DICT_REVERT, inplace=True)
         elif isinstance(data, pd.Series):
+            data = data.copy()
             data.rename(index=PAQ_DICT_REVERT, inplace=True)
         
         return data
