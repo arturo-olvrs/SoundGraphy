@@ -1,3 +1,5 @@
+#!./venv/bin/python3
+
 from enum import Enum
 import os
 import sys
@@ -1157,7 +1159,7 @@ class GUI(BasicWindow):
             common_args = {
                 "hue": differentiation_column,
                 "title": title_label,
-                "diagonal_lines": True,
+                "diagonal_lines": False,
             }
             if differentiation_column is None:
                 common_args["color"] = "steelblue"
@@ -1408,6 +1410,9 @@ class GUI(BasicWindow):
                 and graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting", "Personalized Boxplot"]:
 
                 self.draw_median(plot_df, differentiation_column)
+
+            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting", "Personalized Boxplot"]:
+                self.draw_diagonals()
 
             # Get current axes safely and apply aspect ratio only to simple plots
             if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting", "Personalized Boxplot"]:
@@ -1807,7 +1812,11 @@ class GUI(BasicWindow):
             axes = fig.get_axes()
             
             main_ax = axes[0]
-            main_ax.scatter(x, y, color=color, s=70, edgecolor='black', linewidth=2, zorder=10, alpha=0.9)        
+            main_ax.scatter(x, y, color=color, s=160, edgecolor='black', linewidth=2, zorder=10, alpha=0.9)
+
+            # Add label to the point itself
+            if differentiation_column is not None:
+                main_ax.text(x, y, str(value), color='black', fontsize=6, fontweight='bold', ha='center', va='center', zorder=10)
 
     
     def obtain_ssm_metrics(self):
@@ -1890,6 +1899,38 @@ class GUI(BasicWindow):
         ctk.CTkButton(buttons_frame, text="Exit", command=popup.destroy).pack(side="left", padx=5)
         ctk.CTkButton(buttons_frame, text="Save SSM Metrics", command=lambda: self.save_df_to_file(merged_df, default_name=self.file_name + "_filtered_ssm_metrics")).pack(side="left", padx=5)
         
+
+    def draw_diagonals(self):
+        """Draw diagonal lines in the plot."""
+        fig = plt.gcf()
+        axes = fig.get_axes()
+        
+        ax = axes[0]
+
+        # Get current limits
+        x_min, x_max = ax.get_xlim()
+        y_min, y_max = ax.get_ylim()
+        
+        ax.plot([x_min, x_max], [y_min, y_max], color='gray', linestyle='--', linewidth=1, alpha=0.7)
+        ax.plot([x_min, x_max], [y_max, y_min], color='gray', linestyle='--', linewidth=1, alpha=0.7)
+
+        # Definir estilo común para las etiquetas
+        label_style = dict(
+            fontsize=9, 
+            fontstyle='italic', 
+            color='dimgray', 
+            ha='center', 
+            va='center',
+            alpha=0.8
+        )
+
+        # Añadir las etiquetas en las coordenadas correspondientes
+        loc = 0.75
+        ax.text(loc, loc, '(vibrant)', **label_style)
+        ax.text(-loc, loc, '(chaotic)', **label_style)
+        ax.text(-loc, -loc, '(monotonous)', **label_style)
+        ax.text(loc, -loc, '(calm)', **label_style)
+
 
 
 # ---- SSM Cosine Fitting ----
