@@ -1,5 +1,3 @@
-#!./venv/bin/python3
-
 from enum import Enum
 import os
 import sys
@@ -751,9 +749,9 @@ class GUI(BasicWindow):
         self.date_op = op
 
         if self.date_op == "before":
-            self.date_entry = self.ask_for_date_entry(self, "End Date:")
+            self.date_entry = self.ask_for_date_entry("End Date:")
         elif self.date_op == "after":
-            self.date_entry = self.ask_for_date_entry(self, "Start Date:")
+            self.date_entry = self.ask_for_date_entry("Start Date:")
         elif self.date_op == "between":
             self.start_date_entry = self.ask_for_date_entry("Start Date:")
             self.end_date_entry = self.ask_for_date_entry("End Date:")
