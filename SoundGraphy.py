@@ -1110,7 +1110,8 @@ class GUI(BasicWindow):
         if self.data_types == "emotions":
             values.append("Classic Boxplot")
             values.append("Radar Plot")
-            values.append("SSM Fitting")
+            values.append("SSM Fitting (lines)")
+            values.append("SSM Fitting (sinusoidal)")
             values.append("Empty")
 
         self.graph_type_selector = ctk.CTkOptionMenu(self, values=values, command=self.draw_graph)
@@ -1294,7 +1295,7 @@ class GUI(BasicWindow):
                 ctk.CTkButton(buttons_frame, text="Plot", command=lambda: self.plot_personalized_boxplot(differentiation_column)).pack(side="left", padx=5)
 
 
-            elif graph_type == "SSM Fitting" and self.data_types == "emotions":
+            elif (graph_type == "SSM Fitting (lines)" or graph_type == "SSM Fitting (sinusoidal)") and self.data_types == "emotions":
                 
                 merged_df = self.obtain_ssm_metrics()
 
@@ -1338,27 +1339,59 @@ class GUI(BasicWindow):
                         )
                         fitted_values.append(fitted_value)
                     
-                    # Plot real values with solid line
-                    plt.plot(emotions, real_values, 
+                    
+                    if graph_type == "SSM Fitting (lines)":
+                        # Plot real values with solid line
+                        plt.plot(emotions, real_values, 
                             color=color, 
                             linestyle='-', 
                             linewidth=2, 
                             marker='s', 
                             markersize=6,
                             label=f'Real - {row["Value"]}' if differentiation_column else 'Real values')
+
+
+                        # Plot fitted values with dashed line
+                        plt.plot(emotions, fitted_values, 
+                                color=color, 
+                                linestyle='--', 
+                                linewidth=2, 
+                                marker='o',
+                                markerfacecolor='none',   # <-- evita que el relleno del marker tape la línea
+                                markersize=6,
+                                label=f'Fitted - {row["Value"]}' if differentiation_column else 'Fitted values')
+                        
+                    elif graph_type == "SSM Fitting (sinusoidal)":
+                        # 1. Graficar valores reales usando los ángulos como X
+                        plt.plot(equal_angles, real_values, 
+                                color=color, linestyle='-', linewidth=2, marker='s', markersize=6,
+                                label=f'Real - {row["Value"]}' if differentiation_column else 'Real values')
+                        
+                        # 2. Graficar la curva continua (0 a 360 grados)
+                        theta = np.linspace(equal_angles[0], equal_angles[-1], 200)  # 360 puntos para una curva suave
+                        fitted_curve = ssm_model(theta, row["Amplitude"], row["Displacement"], row["Elevation"])
+                        plt.plot(theta, fitted_curve,
+                                color=color, linestyle='--', linewidth=2, # Línea punteada para la curva continua
+                                label=f'Fitted Curve - {row["Value"]}' if differentiation_column else 'Fitted Curve')
+
+                        # 3. Graficar los puntos discretos ajustados sobre la curva
+                        plt.plot(equal_angles, fitted_values,
+                                color=color, 
+                                linestyle='',           # <-- Sin línea, solo puntos
+                                marker='o',
+                                markerfacecolor='none', # <-- Centro transparente
+                                markersize=6,           # <-- Mismo tamaño que en el otro gráfico
+                                zorder=3)
+
+                # --- CONFIGURACIÓN DEL EJE X SEGÚN EL TIPO DE GRÁFICO ---
+                if graph_type == "SSM Fitting (sinusoidal)":
+                    # Forzamos a que el eje X muestre los ángulos pero con el texto de las emociones
+                    plt.xticks(equal_angles, emotions, rotation=45, ha='right')
+                    plt.xlim(-15, 335) # Un pequeño margen para que no se corten los extremos
+                else:
+                    # Comportamiento normal para el gráfico de líneas categórico
+                    plt.xticks(rotation=45, ha='right')
                     
-                    # Plot fitted values with dashed line
-                    plt.plot(emotions, fitted_values, 
-                            color=color, 
-                            linestyle='--', 
-                            linewidth=2, 
-                            marker='o',
-                            markerfacecolor='none',   # <-- evita que el relleno del marker tape la línea
-                            markersize=6,
-                            label=f'Fitted - {row["Value"]}' if differentiation_column else 'Fitted values')
-                
-                # Customize the plot
-                plt.xticks(rotation=45, ha='right')
                 plt.grid(True, linestyle='--', alpha=0.7)
                 
             
@@ -1405,15 +1438,15 @@ class GUI(BasicWindow):
             if self.data_types == "emotions" \
                 and hasattr(self, 'draw_median_var') \
                 and self.draw_median_var.get() \
-                and graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting", "Personalized Boxplot"]:
+                and graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Personalized Boxplot"]:
 
                 self.draw_median(plot_df, differentiation_column)
 
-            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting", "Personalized Boxplot"]:
+            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Personalized Boxplot"]:
                 self.draw_diagonals()
 
             # Get current axes safely and apply aspect ratio only to simple plots
-            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting", "Personalized Boxplot"]:
+            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Personalized Boxplot"]:
                 try:
                     fig = plt.gcf()
                     axes = fig.get_axes()
