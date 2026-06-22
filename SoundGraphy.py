@@ -1085,6 +1085,14 @@ class GUI(BasicWindow):
                 variable=self.draw_median_var
             )
             draw_median_checkbox.pack(pady=10)
+
+            self.draw_median_labels_var = ctk.BooleanVar(value=True)  # True por defecto
+            draw_median_labels_checkbox = ctk.CTkCheckBox(
+                self,
+                text="Show text inside median points",
+                variable=self.draw_median_labels_var
+            )
+            draw_median_labels_checkbox.pack(pady=10)
         
     
 
@@ -1105,7 +1113,7 @@ class GUI(BasicWindow):
         # Dropdown to select the type of graph
         self.graph_type_label = ctk.CTkLabel(self, text="Select the type of graph:")
         self.graph_type_label.pack(pady=10)
-        values = ["Scatter", "Density", "Density only P50", "Density only P50 (lines)", "Density with Distribution", "Density only P50 with Distribution", "Density only P50 (lines) with Distribution", "Personalized Boxplot"]
+        values = ["Scatter", "Density", "Density only P50", "Density only P50 (lines)", "Density with Distribution", "Density only P50 with Distribution", "Density only P50 (lines) with Distribution", "Personalized Boxplot", "Personalized Scatter"]
 
         if self.data_types == "emotions":
             values.append("Classic Boxplot")
@@ -1294,6 +1302,41 @@ class GUI(BasicWindow):
                 ctk.CTkButton(buttons_frame, text="Exit", command=popup.destroy).pack(side="left", padx=5)
                 ctk.CTkButton(buttons_frame, text="Plot", command=lambda: self.plot_personalized_boxplot(differentiation_column)).pack(side="left", padx=5)
 
+            elif graph_type == "Personalized Scatter":
+                popup = ctk.CTkToplevel()
+                popup.title("Personalized Scatter")
+                popup.geometry("600x300")
+
+                frame = ctk.CTkFrame(popup, corner_radius=15)
+                frame.pack(padx=20, pady=10, fill="both", expand=True)
+
+                title = ctk.CTkLabel(frame, text="Personalized Scatter", font=ctk.CTkFont(size=18, weight="bold"))
+                title.pack(pady=(15, 5))
+
+                # Permitimos elegir cualquier columna del DataFrame original
+                all_columns = list(self.df.columns)
+
+                # Selector Eje X
+                center_frame_x = ctk.CTkFrame(frame, fg_color="transparent")
+                center_frame_x.pack(pady=10)
+                self.custom_x_selector = CustomFiltering(center_frame_x, values=all_columns, default_text="X-Axis")
+                ctk.CTkLabel(center_frame_x, text="X-Axis Variable:").pack(side="left", padx=5)
+                self.custom_x_selector.pack(side="left", padx=5)
+
+                # Selector Eje Y
+                center_frame_y = ctk.CTkFrame(frame, fg_color="transparent")
+                center_frame_y.pack(pady=10)
+                self.custom_y_selector = CustomFiltering(center_frame_y, values=all_columns, default_text="Y-Axis")
+                ctk.CTkLabel(center_frame_y, text="Y-Axis Variable:").pack(side="left", padx=5)
+                self.custom_y_selector.pack(side="left", padx=5)
+
+                # Botones de acción
+                buttons_frame = ctk.CTkFrame(frame, fg_color="transparent")
+                buttons_frame.pack(pady=(10, 15))
+                
+                ctk.CTkButton(buttons_frame, text="Exit", command=popup.destroy).pack(side="left", padx=5)
+                ctk.CTkButton(buttons_frame, text="Plot", command=lambda: self.plot_custom_scatter(differentiation_column)).pack(side="left", padx=5)
+
 
             elif (graph_type == "SSM Fitting (lines)" or graph_type == "SSM Fitting (sinusoidal)") and self.data_types == "emotions":
                 
@@ -1400,9 +1443,9 @@ class GUI(BasicWindow):
                 if len(plot_df) > self.MAX_RADAR_PLOT_ROWS:
                     # Aviso visual al usuario mediante un messagebox
                     messagebox.showinfo(
-                        "Información de Visualización", 
-                        f"El conjunto de datos tiene más de {self.MAX_RADAR_PLOT_ROWS} registros.\n\n"
-                        "Para garantizar la legibilidad del Radar Plot, se calculará y representará automáticamente la mediana."
+                        "Visualization Information", 
+                        f"The dataset has more than {self.MAX_RADAR_PLOT_ROWS} records.\n\n"
+                        "In order to ensure the readability of the Radar Plot, the median will be automatically calculated and displayed."
                     )
                     
                     if differentiation_column is not None:
@@ -1413,7 +1456,7 @@ class GUI(BasicWindow):
                         # Si no hay columna de diferenciación, calculamos la mediana global
                         PAQs_cols = [f"PAQ{i}" for i in range(1, 9)]
                         radar_df = plot_df[PAQs_cols].median().to_frame().T
-                        radar_df["Value"] = "Mediana Global"
+                        radar_df["Value"] = "Global Median"
                         differentiation_column = "Value"
                 else:
                     # Si tiene 7 o menos registros, usamos el plot_df original con todos los datos individuales
@@ -1459,15 +1502,15 @@ class GUI(BasicWindow):
             if self.data_types == "emotions" \
                 and hasattr(self, 'draw_median_var') \
                 and self.draw_median_var.get() \
-                and graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Personalized Boxplot"]:
+                and graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Personalized Boxplot", "Personalized Scatter"]:
 
                 self.draw_median(plot_df, differentiation_column)
 
-            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Personalized Boxplot"]:
+            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Personalized Boxplot", "Personalized Scatter"]:
                 self.draw_diagonals()
 
             # Get current axes safely and apply aspect ratio only to simple plots
-            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Personalized Boxplot"]:
+            if graph_type not in ["Radar Plot", "Classic Boxplot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Personalized Boxplot", "Personalized Scatter"]:
                 try:
                     fig = plt.gcf()
                     axes = fig.get_axes()
@@ -1481,7 +1524,7 @@ class GUI(BasicWindow):
                 except Exception as e:
                     print(f"Warning: Could not set aspect ratio: {e}")
 
-            if graph_type not in ["Personalized Boxplot"]:
+            if graph_type not in ["Personalized Boxplot", "Personalized Scatter"]:
                 # Only show legend if there are labeled elements to display
                 try:
                     fig = plt.gcf()
@@ -1587,6 +1630,47 @@ class GUI(BasicWindow):
         if differentiation_column is not None:
             plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column)
 
+
+        plt.tight_layout()
+        plt.show()
+
+    def plot_custom_scatter(self, differentiation_column=None):
+        """Dibuja un Scatter Plot basado en las dos variables elegidas por el usuario."""
+        x_column = self.custom_x_selector.get() if hasattr(self, 'custom_x_selector') else None
+        y_column = self.custom_y_selector.get() if hasattr(self, 'custom_y_selector') else None
+
+        if x_column not in self.df.columns or y_column not in self.df.columns:
+            messagebox.showerror("Error", "Both X and Y axis columns must be selected and valid.")
+            return
+
+        # Creamos la figura de matplotlib
+        plt.figure(figsize=(10, 6))
+        
+        # Copia para evitar modificar los datos originales
+        plot_df = self.df.copy()
+
+        # Dibujamos usando seaborn scatterplot
+        sns.scatterplot(
+            x=x_column,
+            y=y_column,
+            data=plot_df,
+            hue=differentiation_column,
+            palette="deep" if differentiation_column else None,
+            alpha=0.8,
+            edgecolor="w",
+            s=80
+        )
+
+        # Configuración de etiquetas y título
+        title_label = self.title_entry.get() if hasattr(self, 'title_entry') else "Scatter Plot"
+        plt.title(title_label, fontsize=14, fontweight='bold')
+        plt.xlabel(x_column, fontsize=12)
+        plt.ylabel(y_column, fontsize=12)
+        plt.grid(True, linestyle='--', alpha=0.5)
+
+        # Si hay leyenda de diferenciación, la movemos fuera para que no moleste
+        if differentiation_column is not None:
+            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column)
 
         plt.tight_layout()
         plt.show()
@@ -1867,7 +1951,9 @@ class GUI(BasicWindow):
             main_ax.scatter(x, y, color=color, s=160, edgecolor='black', linewidth=2, zorder=10, alpha=0.9)
 
             # Add label to the point itself
-            if differentiation_column is not None:
+            # Solo añade el texto si hay columna de diferenciación Y la casilla está marcada
+            show_labels = getattr(self, 'draw_median_labels_var', None)
+            if differentiation_column is not None and (show_labels is None or show_labels.get()):
                 main_ax.text(x, y, str(value), color='black', fontsize=6, fontweight='bold', ha='center', va='center', zorder=10)
 
     
