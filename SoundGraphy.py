@@ -1396,13 +1396,34 @@ class GUI(BasicWindow):
                 
             
             elif graph_type == "Radar Plot" and self.data_types == "emotions":
-                # Check less than MAX_RADAR_PLOT_ROWS rows
+                # Si hay más de 7 filas, calculamos las medianas para agrupar los datos
                 if len(plot_df) > self.MAX_RADAR_PLOT_ROWS:
-                    messagebox.showerror("Error", f"Radar Plot requires less than {self.MAX_RADAR_PLOT_ROWS} rows of data.")
+                    # Aviso visual al usuario mediante un messagebox
+                    messagebox.showinfo(
+                        "Información de Visualización", 
+                        f"El conjunto de datos tiene más de {self.MAX_RADAR_PLOT_ROWS} registros.\n\n"
+                        "Para garantizar la legibilidad del Radar Plot, se calculará y representará automáticamente la mediana."
+                    )
+                    
+                    if differentiation_column is not None:
+                        # Agrupamos por la columna elegida y calculamos la mediana de las preguntas PAQ
+                        PAQs_cols = [f"PAQ{i}" for i in range(1, 9)]
+                        radar_df = plot_df.groupby(differentiation_column)[PAQs_cols].median().reset_index()
+                    else:
+                        # Si no hay columna de diferenciación, calculamos la mediana global
+                        PAQs_cols = [f"PAQ{i}" for i in range(1, 9)]
+                        radar_df = plot_df[PAQs_cols].median().to_frame().T
+                        radar_df["Value"] = "Mediana Global"
+                        differentiation_column = "Value"
                 else:
-                    # Revert from PAQ to emotions
-                    plot_df = self.revert_from_PAQ(plot_df)
-                    sspy.paq_radar_plot(plot_df, title=title_label, index=differentiation_column)
+                    # Si tiene 7 o menos registros, usamos el plot_df original con todos los datos individuales
+                    radar_df = plot_df.copy()
+
+                # Revertimos de formato PAQ (PAQ1, PAQ2...) a los nombres de las emociones (Pleasant, Vibrant...)
+                radar_df = self.revert_from_PAQ(radar_df)
+                
+                # Renderizamos el gráfico usando la función nativa de soundscapy
+                sspy.paq_radar_plot(radar_df, title=title_label, index=differentiation_column)
 
             elif self.data_types == "emotions" \
                 and hasattr(self, 'draw_median_var') \
