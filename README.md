@@ -54,6 +54,7 @@ SoundGraphy is established upon a robust functional tripod that includes:
 ## 📊 Quick Start Guide
 
 1. **Launch SoundGraphy** and select your survey data file (CSV or Excel).
+    - Example datasets are provided in the `examples/` directory for testing and demonstration purposes.
 2. **Map your columns** to the required attributes (e.g., Pleasantness, Eventfulness, etc.).
 3. **Apply filters** to focus on specific subsets of your data (e.g., by date, age group, sound level).
 4. **Choose your visualization** type (e.g., Circumplex, Radar, Box Plot) and customize it as needed.
