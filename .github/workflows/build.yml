@@ -42,13 +42,6 @@ jobs:
         pyinstaller --onefile --windowed ${{ matrix.icon_param }} --name="${{ matrix.artifact_name }}" SoundGraphy.py
       shell: bash
 
-    - name: Preparar App de Mac (ZIP)
-      if: matrix.os == 'macos-latest'
-      run: |
-        cd dist
-        zip -r ../SoundGraphy-Mac.zip SoundGraphy-Mac.app
-      shell: bash
-
     - name: Guardar Ejecutable de Prueba
       uses: actions/upload-artifact@v4
       with:
@@ -56,4 +49,14 @@ jobs:
         path: |
           dist/SoundGraphy-Linux
           dist/SoundGraphy-Windows.exe
-          SoundGraphy-Mac.zip
+          dist/SoundGraphy-Mac.app
+        if-no-files-found: ignore- name: Guardar Ejecutable de Prueba
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: |
+          dist/SoundGraphy-Linux
+          dist/SoundGraphy-Windows.exe
+          dist/SoundGraphy-Mac.app
+        if-no-files-found: ignore
+        include-hidden-files: true

@@ -201,8 +201,6 @@ class BasicWindow(ctk.CTk):
 
         # Override Tkinter's error reporting to catch all callback exceptions
         self.report_callback_exception = self.handle_tkinter_error
-            
-        self.logo_path = os.path.join(current_path, "logo/logo.png")
         
         # Bind the window close event to cleanup
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
