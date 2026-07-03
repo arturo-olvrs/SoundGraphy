@@ -1,8 +1,9 @@
-name: Prueba de Compilacion
+name: Crear Release Oficial
 
 on:
   push:
-    branches: [ test-compilacion ]
+    tags:
+      - 'v*' # Se activará solo cuando subas un tag que empiece con 'v' (ej. v1.0.0)
 
 jobs:
   build:
@@ -13,20 +14,20 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_name: SoundGraphy-Linux
-            icon_param: "" # Linux no incrusta iconos en el binario
+            icon_param: ""
           - os: windows-latest
-            artifact_name: SoundGraphy-Windows
+            artifact_name: SoundGraphy-Windows.exe # Añadimos la extensión aquí para automatizar
             icon_param: "--icon=logo/logo.ico"
           - os: macos-latest
-            artifact_name: SoundGraphy-Mac
+            artifact_name: SoundGraphy-Mac.app
             icon_param: "--icon=logo/logo.icns"
 
     steps:
     - name: Descargar codigo
-      uses: actions/checkout@v4
+      uses: actions/checkout
 
     - name: Configurar Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python
       with:
         python-version: '3.10'
 
@@ -39,16 +40,30 @@ jobs:
 
     - name: Compilar con PyInstaller
       run: |
-        pyinstaller --onefile --windowed ${{ matrix.icon_param }} --name="${{ matrix.artifact_name }}" SoundGraphy.py
+        # Usamos un nombre temporal plano para pyinstaller para evitar extensiones dobles
+        pyinstaller --onefile --windowed ${{ matrix.icon_param }} --name="SoundGraphy" SoundGraphy.py
       shell: bash
 
-    - name: Guardar Ejecutable de Prueba
-      uses: actions/upload-artifact@v4
+    - name: Preparar Binarios (Evitar carpetas dist)
+      run: |
+        cd dist
+        if [ "${{ matrix.os }}" = "macos-latest" ]; then
+          # Mac necesita ir en un ZIP para no perder los permisos del .app al subirse a la Release
+          zip -r ../SoundGraphy-Mac.zip SoundGraphy.app
+        elif [ "${{ matrix.os }}" = "windows-latest" ]; then
+          mv SoundGraphy.exe ../SoundGraphy-Windows.exe
+        else
+          mv SoundGraphy ../SoundGraphy-Linux
+        fi
+      shell: bash
+
+    - name: Subir a la Release de GitHub
+      uses: softprops/action-gh-release@v2
       with:
-        name: ${{ matrix.artifact_name }}
-        path: |
-          dist/SoundGraphy-Linux
-          dist/SoundGraphy-Windows.exe
-          dist/SoundGraphy-Mac.app
-        if-no-files-found: ignore
-        include-hidden-files: true
+        files: |
+          SoundGraphy-Linux
+          SoundGraphy-Windows.exe
+          SoundGraphy-Mac.zip
+        fail_on_unmatched_files: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
