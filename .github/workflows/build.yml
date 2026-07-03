@@ -12,21 +12,21 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: SoundGraphy
-            asset_name: SoundGraphy-Linux
+            artifact_name: SoundGraphy-Linux
+            icon_param: "" # Linux no incrusta iconos en el binario
           - os: windows-latest
-            artifact_name: SoundGraphy.exe
-            asset_name: SoundGraphy-Windows.exe
+            artifact_name: SoundGraphy-Windows
+            icon_param: "--icon=logo/logo.ico"
           - os: macos-latest
-            artifact_name: SoundGraphy
-            asset_name: SoundGraphy-Mac
+            artifact_name: SoundGraphy-Mac
+            icon_param: "--icon=logo/logo.icns"
 
     steps:
     - name: Descargar codigo
-      uses: actions/checkout@v4
+      uses: actions/checkout
 
     - name: Configurar Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python
       with:
         python-version: '3.10'
 
@@ -39,26 +39,20 @@ jobs:
 
     - name: Compilar con PyInstaller
       run: |
-        pyinstaller --onefile --windowed SoundGraphy.py
+        pyinstaller --onefile --windowed ${{ matrix.icon_param }} --name="${{ matrix.artifact_name }}" SoundGraphy.py
       shell: bash
 
-    - name: Renombrar archivo (Windows/Linux)
-      if: matrix.os != 'macos-latest'
-      run: |
-        mv dist/${{ matrix.artifact_name }} dist/${{ matrix.asset_name }}
-      shell: bash
-
-    - name: Preparar App de Mac
+    - name: Preparar App de Mac (ZIP)
       if: matrix.os == 'macos-latest'
       run: |
         cd dist
-        zip -r ../SoundGraphy-Mac.zip SoundGraphy.app
+        zip -r ../SoundGraphy-Mac.zip SoundGraphy-Mac.app
       shell: bash
 
     - name: Guardar Ejecutable de Prueba
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.asset_name }}
+        name: ${{ matrix.artifact_name }}
         path: |
           dist/SoundGraphy-Linux
           dist/SoundGraphy-Windows.exe

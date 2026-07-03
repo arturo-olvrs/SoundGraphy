@@ -10,6 +10,7 @@ from scipy.optimize import curve_fit
 import soundscapy as sspy
 import seaborn as sns
 import matplotlib.pyplot as plt
+from PIL import Image, ImageTk
 
 FONT=("Arial", 20)
 ctk.set_appearance_mode("System")
@@ -190,7 +191,7 @@ class CustomFiltering(ctk.CTkFrame):
 class BasicWindow(ctk.CTk):
     """Basic window class for the SoundScape application."""
     def __init__(self):
-        super().__init__()
+        super().__init__(className="SoundGraphy")
         self.title("SoundGraphy GUI")
         self.minsize(400, 300)
 
@@ -200,6 +201,8 @@ class BasicWindow(ctk.CTk):
 
         # Override Tkinter's error reporting to catch all callback exceptions
         self.report_callback_exception = self.handle_tkinter_error
+            
+        self.logo_path = os.path.join(current_path, "logo/logo.png")
         
         # Bind the window close event to cleanup
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -257,6 +260,7 @@ class GUI(BasicWindow):
     
     def __init__(self):
         super().__init__()
+
         self.df = None  # DataFrame to hold the loaded data             
 
         self.label = ctk.CTkLabel(self, text="Welcome to SoundGraphy GUI!\nCreate ISO 12913-3 compliant graphics", font=FONT)

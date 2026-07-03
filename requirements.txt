@@ -5,3 +5,4 @@ git+https://github.com/arturo-olvrs/seaborn.git@v0.13.2-arturo1#egg=seaborn
 soundscapy==0.8.0rc5
 scipy
 numpy
+Pillow
