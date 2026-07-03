@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*' # Se activará solo cuando subas un tag que empiece con 'v' (ej. v1.0.0)
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Compilar para ${{ matrix.os }}
