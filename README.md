@@ -48,8 +48,11 @@ SoundGraphy is established upon a robust functional tripod that includes:
     python SoundGraphy.py
     ```
 ### Option 2: Using the Executable (End-User)
-*Note*: It will be available soon. Stay tuned!
-<!-- TODO: Add executable installation instructions -->
+
+To install and run the executable, follow these steps:
+
+1. Download the latest release from the **Releases** section.
+2. Run the installer or executable file appropriate for your operating system.
 
 ## 📊 Quick Start Guide
 
