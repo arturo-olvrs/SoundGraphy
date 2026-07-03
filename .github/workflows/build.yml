@@ -50,13 +50,5 @@ jobs:
           dist/SoundGraphy-Linux
           dist/SoundGraphy-Windows.exe
           dist/SoundGraphy-Mac.app
-        if-no-files-found: ignore- name: Guardar Ejecutable de Prueba
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.artifact_name }}
-        path: |
-          dist/SoundGraphy-Linux
-          dist/SoundGraphy-Windows.exe
-          dist/SoundGraphy-Mac.app
         if-no-files-found: ignore
         include-hidden-files: true
