@@ -1451,7 +1451,7 @@ class GUI(BasicWindow):
                     if differentiation_column is not None:
                         # Agrupamos por la columna elegida y calculamos la mediana de las preguntas PAQ
                         PAQs_cols = [f"PAQ{i}" for i in range(1, 9)]
-                        radar_df = plot_df.groupby(differentiation_column)[PAQs_cols].median().reset_index()
+                        radar_df = plot_df.groupby(differentiation_column, observed=False)[PAQs_cols].median().reset_index()
                     else:
                         # Si no hay columna de diferenciación, calculamos la mediana global
                         PAQs_cols = [f"PAQ{i}" for i in range(1, 9)]
