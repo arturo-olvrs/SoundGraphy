@@ -12,7 +12,7 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact_name: SoundGraphy-Linux
+            artifact_name: SoundGraphy
             asset_name: SoundGraphy-Linux
           - os: windows-latest
             artifact_name: SoundGraphy.exe
