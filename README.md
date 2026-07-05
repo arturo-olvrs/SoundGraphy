@@ -75,7 +75,10 @@ To install and run the executable, follow these steps:
 Contributions are welcome! Please fork the repository and submit a pull request with your improvements or bug fixes. For major changes, please open an issue first to discuss what you would like to change.
 
 ## 🎓 Citation
-If you use SoundGraphy in your research, please cite it as follows:
+
+The citation will be available soon.
+
+<!--If you use SoundGraphy in your research, please cite it as follows:
 
 ```
 @software{SoundGraphy2024,
@@ -86,7 +89,7 @@ If you use SoundGraphy in your research, please cite it as follows:
   journal = {GitHub repository},
   howpublished = {\url{https://github.com/arturo-olvrs/SoundGraphy}}
 }
-```
+```-->
 
 <!--// TODO: Añadir bien la citación, con DOI.-->
 
