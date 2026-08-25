@@ -1,3 +1,5 @@
+# <p align="center"><img src="logo/logo.png" alt="SoundGraphy Logo" width="200"/></p>
+
 # SoundGraphy 🎧📊
 
 **A Graphical and Statistical Tool for Assessing Acoustic Perception according to ISO 12913-3**

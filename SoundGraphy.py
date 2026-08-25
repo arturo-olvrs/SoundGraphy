@@ -193,7 +193,16 @@ class BasicWindow(ctk.CTk):
     def __init__(self):
         super().__init__(className="SoundGraphy")
         self.title("SoundGraphy GUI")
-        self.minsize(400, 300)
+        self.minsize(700, 500)
+
+        try:
+            logo_path = os.path.join(os.path.dirname(__file__), "logo", "logo.png")
+            if os.path.exists(logo_path):
+                logo_img = ImageTk.PhotoImage(Image.open(logo_path))
+                self.iconphoto(False, logo_img)
+                self._logo_img = logo_img
+        except Exception as e:
+            print(f"Warning: Could not set window icon: {e}")
 
         width = int(self.winfo_screenwidth()/2)
         hight = int(self.winfo_screenheight()/2)
@@ -259,10 +268,20 @@ class GUI(BasicWindow):
     def __init__(self):
         super().__init__()
 
-        self.df = None  # DataFrame to hold the loaded data             
+        self.df = None  # DataFrame to hold the loaded data   
+
+        try:
+            logo_path = os.path.join(os.path.dirname(__file__), "logo", "logo.png")
+            if os.path.exists(logo_path):
+                pil_img = Image.open(logo_path)
+                self.logo_ctk = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(150, 150))
+                self.logo_label = ctk.CTkLabel(self, image=self.logo_ctk, text="")
+                self.logo_label.pack(pady=(20, 0))
+        except Exception as e:
+            print(f"Warning loading UI logo: {e}")          
 
         self.label = ctk.CTkLabel(self, text="Welcome to SoundGraphy GUI!\nCreate ISO 12913-3 compliant graphics", font=FONT)
-        self.label.pack(pady=30)
+        self.label.pack(pady=(10, 20))
 
         self.select_doc_button = ctk.CTkButton(self, text="Select Document", command=self.open_select_doc)
         self.select_doc_button.pack(pady=20)
