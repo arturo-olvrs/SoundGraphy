@@ -20,7 +20,7 @@ jobs:
             icon_param: ""
             path_sep: ":"
           - os: windows-latest
-            artifact_name: SoundGraphy-Windows.exe # Añadimos la extensión aquí para automatizar
+            artifact_name: SoundGraphy-Windows.exe
             icon_param: "--icon=logo/logo.ico"
             path_sep: ";"
           - os: macos-latest
@@ -51,6 +51,8 @@ jobs:
           --name="SoundGraphy" \
           --add-data="logo${{ matrix.path_sep }}logo" \
           --collect-all="customtkinter" \
+          --collect-all="PIL" \
+          --hidden-import="PIL._tkinter_finder" \
           main.py
       shell: bash
 
@@ -58,13 +60,10 @@ jobs:
       run: |
         cd dist
         if [ "${{ matrix.os }}" = "macos-latest" ]; then
-          # En macOS con --windowed se genera SoundGraphy.app
           zip -r ../SoundGraphy-Mac.zip SoundGraphy.app
         elif [ "${{ matrix.os }}" = "windows-latest" ]; then
-          # Renombrar el ejecutable único
           mv SoundGraphy.exe ../SoundGraphy-Windows.exe
         else
-          # Renombrar el binario único de Linux
           mv SoundGraphy ../SoundGraphy-Linux
         fi
       shell: bash

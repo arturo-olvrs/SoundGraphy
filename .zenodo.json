@@ -1,0 +1,44 @@
+{
+  "title": "SoundGraphy",
+  "upload_type": "software",
+  "description": "An open-source Python GUI for modern soundscape data analysis, advanced filtering, and statistical validation (SSM) according to the ISO 12913 standard.",
+  "access_right": "open",
+  "license": "MIT",
+  "language": "eng",
+  "creators": [
+    {
+      "name": "Olivares Martos, Arturo",
+      "affiliation": "School of Computer Engineering, University of Granada, Granada, 18071, Spain",
+      "orcid": "0009-0000-9415-7268"
+    },
+    {
+      "name": "García-Quesada, Rafael",
+      "affiliation": "Building Construction Department, School of Architecture, University of Granada, Granada, 18071, Spain",
+      "orcid": "0000-0001-5373-302X"
+    },
+    {
+      "name": "Vida Manzano, Jerónimo",
+      "affiliation": "Applied Physics Department, Faculty of Sciences, University of Granada, Granada, 18071, Spain",
+      "orcid": "0000-0002-6830-6511"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Soundscape, Health & Heritage (SHH) Group",
+      "type": "ResearchGroup",
+      "affiliation": "University of Granada"
+    }
+  ],
+  "keywords": [
+    "SoundGraphy",
+    "soundscape",
+    "ISO 12913",
+    "ISO 12913-3",
+    "acoustic environments",
+    "psychoacoustics",
+    "data analysis",
+    "python",
+    "gui",
+    "customtkinter"
+  ]
+}
