@@ -295,6 +295,7 @@ class GUI(BasicWindow):
         try:
             self.df = sspy.surveys.rename_paqs(self.df)
             self.df = sspy.surveys.add_iso_coords(self.df, overwrite=True)
+            self.original_df = self.df.copy()
         except Exception as e:
             messagebox.showerror("Processing Error", f"Error processing emotions:\n{e}")
             return self.handle_emotions()
@@ -363,14 +364,29 @@ class GUI(BasicWindow):
             # Change the header of the coordinates to its column name
             self.df.rename(columns={selected_value: f"ISO{pe}"}, inplace=True)
 
+        self.original_df = self.df.copy()
         self.data_types = "coords"
         self.filtering()
+
+    def reset_filters(self):
+        """Restores the dataset to its post-mapping initial state."""
+        if hasattr(self, 'original_df') and self.original_df is not None:
+            self.df = self.original_df.copy()
+            messagebox.showinfo("Filters Reset", f"All active filters have been cleared.\nDataset restored to {len(self.df)} records.")
+            self.filtering()
 
     def filtering(self):
         """Display the main column selection interface for applying data filters."""
         self.clear_window()
         back_func = self.handle_pe if self.data_types == "coords" else self.handle_emotions
         self.header(back_func, "Select a column to filter:")
+
+        # Information about the current state of the DF
+        records_text = f"Current active records: {len(self.df)}"
+        if hasattr(self, 'original_df'):
+            records_text += f" (Total: {len(self.original_df)})"
+        self.records_label = ctk.CTkLabel(self, text=records_text, font=ctk.CTkFont(size=13, slant="italic"))
+        self.records_label.pack(pady=(0, 10))
 
 
         columns = list(self.df.columns)
@@ -388,6 +404,15 @@ class GUI(BasicWindow):
 
         self.filter_button = ctk.CTkButton(self, text="Select Filters", command=lambda: self.select_filter(self.column_selector.get()))
         self.filter_button.pack(pady=10)
+
+        self.reset_button = ctk.CTkButton(
+            self, 
+            text="Reset All Filters", 
+            command=self.reset_filters,
+            fg_color="#D9534F", 
+            hover_color="#C9302C"
+        )
+        self.reset_button.pack(pady=5)
 
         self.finish_button = ctk.CTkButton(self, text="Finish Filtering", command=self.finish_filtering)
         self.finish_button.pack(pady=10)
