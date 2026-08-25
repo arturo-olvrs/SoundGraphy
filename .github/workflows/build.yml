@@ -58,16 +58,14 @@ jobs:
       run: |
         cd dist
         if [ "${{ matrix.os }}" = "macos-latest" ]; then
-          # Mac empaqueta el .app generado
+          # En macOS con --windowed se genera SoundGraphy.app
           zip -r ../SoundGraphy-Mac.zip SoundGraphy.app
         elif [ "${{ matrix.os }}" = "windows-latest" ]; then
-          # Para Windows empaquetamos la carpeta distribuida con sus dependencias
-          cd SoundGraphy
-          zip -r ../../SoundGraphy-Windows.zip .
+          # Renombrar el ejecutable único
+          mv SoundGraphy.exe ../SoundGraphy-Windows.exe
         else
-          # Para Linux empaquetamos el directorio distribuible
-          cd SoundGraphy
-          tar -czf ../../SoundGraphy-Linux.tar.gz .
+          # Renombrar el binario único de Linux
+          mv SoundGraphy ../SoundGraphy-Linux
         fi
       shell: bash
 
