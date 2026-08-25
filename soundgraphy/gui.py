@@ -218,7 +218,7 @@ class GUI(BasicWindow):
 
         self.header(self.open_select_doc, "What type of data do you have?")
 
-        self.option_emot = ctk.CTkButton(self, text="I have the values of the 8 emotions", command=self.handle_emotions)
+        self.option_emot = ctk.CTkButton(self, text="I have the values of the 8 perceptual attributes", command=self.handle_emotions)
         self.option_emot.pack(pady=10)
 
         self.option_pe = ctk.CTkButton(self, text="I only have the values for the ISOPleasant and ISOEventful", command=self.handle_pe)
@@ -239,7 +239,7 @@ class GUI(BasicWindow):
                 previous_selections = {}
         
         self.clear_window()
-        self.header(self.data_type_selection, "Map each emotion to a column:")
+        self.header(self.data_type_selection, "Map each perceptual attribute to a column:")
 
         columns = list(self.df.columns)
         self.emotion_selectors = {}
@@ -284,7 +284,7 @@ class GUI(BasicWindow):
         for emot, dropdown in self.emotion_selectors.items():
             selected_value = dropdown.get()
             if selected_value not in self.df.columns:
-                messagebox.showerror("Selection Error", "You must select a column for each emotion.")
+                messagebox.showerror("Selection Error", "You must select a column for each perceptual attribute.")
                 return self.handle_emotions()
             
             # Change the header of the emotions to its column name
@@ -959,95 +959,152 @@ class GUI(BasicWindow):
         """Finalize filtering and display the plotting / metrics selection interface."""
         self.clear_window()
         self.header(self.filtering, "Filtering Complete!")
-        
-        save_button = ctk.CTkButton(self, text="Download Filtered Data", command=lambda: self.save_df_to_file(self.df, default_name=self.file_name + "_filtered"))
-        save_button.pack(pady=(10, 30))
 
-        # CustomFiltering widget to select which columns to differentiate by
+        # Contenedor centralizado para equilibrar la pantalla
+        main_container = ctk.CTkFrame(self, corner_radius=16, fg_color=("gray85", "gray17"))
+        main_container.pack(padx=40, pady=(20, 30), expand=True)
+
+        # 1. Botón de descarga superior
+        save_button = ctk.CTkButton(
+            main_container, 
+            text="Download Filtered Data", 
+            command=lambda: self.save_df_to_file(self.df, default_name=self.file_name + "_filtered"),
+            height=34,
+            font=ctk.CTkFont(weight="bold")
+        )
+        save_button.pack(pady=(20, 20), padx=30)
+
+        # 2. Botones de estadísticas (IQR, Median, SSM)
+        if self.data_types == "emotions":
+            statistics_frame = ctk.CTkFrame(main_container, fg_color="transparent")
+            statistics_frame.pack(pady=(0, 25))
+            self.iqr_button = ctk.CTkButton(statistics_frame, text="IQR", command=self.show_iqr, width=100)
+            self.iqr_button.pack(side="left", padx=6)
+            self.median_button = ctk.CTkButton(statistics_frame, text="Median", command=self.show_median, width=100)
+            self.median_button.pack(side="left", padx=6)
+            self.ssm_button = ctk.CTkButton(statistics_frame, text="SSM Metrics", command=self.show_ssm_metrics, width=110)
+            self.ssm_button.pack(side="left", padx=6)
+
+        # Columnas disponibles para diferenciación
         values = list(self.df.columns)
-        to_delete = ["ISOPleasant", "ISOEventful"]
-        for i in range(1,9):
-            to_delete.append(f"PAQ{i}")
-        for col in to_delete:
-            if col in values:
-                values.remove(col)
+        to_delete = ["ISOPleasant", "ISOEventful"] + [f"PAQ{i}" for i in range(1, 9)]
+        values = [col for col in values if col not in to_delete]
 
-        # Button to obtain the IQR of each column
+        # 3. Fila: Diferenciación
+        diff_frame = ctk.CTkFrame(main_container, fg_color="transparent")
+        diff_frame.pack(pady=0, fill="x", padx=30)
+        ctk.CTkLabel(diff_frame, text="Differentiate by:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 10))
+        self.differentiation_selector = CustomFiltering(diff_frame, values=values, default_text="None")
+        self.differentiation_selector.pack(side="right")
+
+        # 4. Fila: Título del gráfico
+        title_frame = ctk.CTkFrame(main_container, fg_color="transparent")
+        title_frame.pack(pady=8, fill="x", padx=30)
+        ctk.CTkLabel(title_frame, text="Graph Title:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 10))
+        self.title_entry = ctk.CTkEntry(title_frame, placeholder_text="e.g. Filtered Data Visualization", width=240)
+        self.title_entry.pack(side="right")
+
+        # 5. Fila: Ajustes visuales (Tamaño de fuente + Posición de leyenda)
+        style_frame = ctk.CTkFrame(main_container, fg_color="transparent")
+        style_frame.pack(pady=8, fill="x", padx=30)
+
+        # Control de fuente
+        font_box = ctk.CTkFrame(style_frame, fg_color="transparent")
+        font_box.pack(side="left")
+        ctk.CTkLabel(font_box, text="Font:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(font_box, text="-", width=28, height=28, command=self.decrease_font_size).pack(side="left", padx=2)
+        self.font_size_entry = ctk.CTkEntry(font_box, width=38, height=28, justify="center")
+        self.font_size_entry.insert(0, "11")
+        self.font_size_entry.pack(side="left", padx=2)
+        ctk.CTkButton(font_box, text="+", width=28, height=28, command=self.increase_font_size).pack(side="left", padx=2)
+
+        # Control de leyenda
+        legend_box = ctk.CTkFrame(style_frame, fg_color="transparent")
+        legend_box.pack(side="right")
+        ctk.CTkLabel(legend_box, text="Legend:", font=ctk.CTkFont(weight="bold")).pack(side="left", padx=(0, 6))
+        self.legend_pos_selector = ctk.CTkOptionMenu(
+            legend_box,
+            values=["Auto (Best)", "Outside Right", "Top Right", "Top Left", "Bottom Right", "Bottom Left", "None (Hide)"],
+            width=130,
+            height=28
+        )
+        self.legend_pos_selector.set("Auto (Best)")
+        self.legend_pos_selector.pack(side="left")
+
+        # 6. Fila: Casillas de medianas
         if self.data_types == "emotions":
-            # Frame to contain both buttons in the same row
-            statistics_frame = ctk.CTkFrame(self, fg_color="transparent")
-            statistics_frame.pack(pady=(10,30))
-            
-            self.iqr_button = ctk.CTkButton(statistics_frame, text="IQR", command=lambda: self.show_iqr())
-            self.iqr_button.pack(side="left", padx=5)
-            
-            self.median_button = ctk.CTkButton(statistics_frame, text="Median", command=lambda: self.show_median())
-            self.median_button.pack(side="left", padx=5)
+            checkbox_frame = ctk.CTkFrame(main_container, fg_color="transparent")
+            checkbox_frame.pack(pady=20, padx=30)
 
-            self.ssm_button = ctk.CTkButton(statistics_frame, text="SSM Metrics", command=lambda: self.show_ssm_metrics())
-            self.ssm_button.pack(side="left", padx=5)
-        
-        # Column to differentiate by
-        frame = ctk.CTkFrame(self, fg_color="transparent")
-        frame.pack(pady=10, fill="x")  # fill="x" to make it full width
-        center_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        center_frame.pack(expand=True)  # expand=True centers the frame internally
-        self.differentiation_selector = CustomFiltering(center_frame, values=values, default_text="None")        
-        self.differentiation_selector_label = ctk.CTkLabel(center_frame, text="Select the column to differentiate by:")
-        self.differentiation_selector_label.pack(side="left", padx=5)
-        self.differentiation_selector.pack(side="left", padx=5)
-
-        # Entry to select if drawing the median or not
-        if self.data_types == "emotions":
             self.draw_median_var = ctk.BooleanVar(value=True)
-            draw_median_checkbox = ctk.CTkCheckBox(
-                self,
-                text="Draw median",
-                variable=self.draw_median_var
+            self.draw_median_checkbox = ctk.CTkCheckBox(
+                checkbox_frame, 
+                text="Draw median", 
+                variable=self.draw_median_var, 
+                command=self.toggle_draw_median
             )
-            draw_median_checkbox.pack(pady=10)
+            self.draw_median_checkbox.pack(side="left", padx=12)
 
-            self.draw_median_labels_var = ctk.BooleanVar(value=True)  # True por defecto
-            draw_median_labels_checkbox = ctk.CTkCheckBox(
-                self,
-                text="Show text inside median points",
+            self.draw_median_labels_var = ctk.BooleanVar(value=True)
+            self.draw_median_labels_checkbox = ctk.CTkCheckBox(
+                checkbox_frame, 
+                text="Show labels in median points", 
                 variable=self.draw_median_labels_var
             )
-            draw_median_labels_checkbox.pack(pady=10)
+            self.draw_median_labels_checkbox.pack(side="left", padx=12)
+
+
+        # 7. Selector de tipo de gráfico
+        graph_box = ctk.CTkFrame(main_container, fg_color="transparent")
+        graph_box.pack(pady=(12, 22), padx=30)
+        ctk.CTkLabel(graph_box, text="Select graph type:", font=ctk.CTkFont(weight="bold")).pack(pady=(0, 6))
         
+        values_graphs = [
+            "Scatter", "Density", "Density only P50", "Density only P50 (lines)",
+            "Density with Distribution", "Density only P50 with Distribution",
+            "Density only P50 (lines) with Distribution", "Personalized Boxplot", "Personalized Scatter"
+        ]
+        if self.data_types == "emotions":
+            values_graphs.extend(["Classic Boxplot", "Radar Plot", "SSM Fitting (lines)", "SSM Fitting (sinusoidal)", "Empty"])
+
+        self.graph_type_selector = ctk.CTkOptionMenu(graph_box, values=values_graphs, command=self.draw_graph, width=200, height=32)
+        self.graph_type_selector.set("Graph Type")
+        self.graph_type_selector.pack()
+
+
+    def toggle_draw_median(self):
+        """Enable or disable the median labels checkbox based on 'Draw median' state."""
+        if hasattr(self, 'draw_median_labels_checkbox') and hasattr(self, 'draw_median_var'):
+            if self.draw_median_var.get():
+                self.draw_median_labels_checkbox.configure(state="normal")
+            else:
+                self.draw_median_labels_var.set(False)
+                self.draw_median_labels_checkbox.configure(state="disabled")
+
     
 
-        # Entry for the title of the graph
-        frame = ctk.CTkFrame(self, fg_color="transparent")
-        frame.pack(pady=(10,40), fill="x")  # fill="x" to make it full width
-        center_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        center_frame.pack(expand=True)  # expand=True centers the frame internally
-        self.title_label = ctk.CTkLabel(center_frame, text="Title for the graph:")
-        self.title_entry = ctk.CTkEntry(center_frame, placeholder_text="e.g. 'Filtered Data Visualization'", width=100)
-        self.title_label.pack(side="left", padx=5)
-        self.title_entry.pack(side="left", padx=5)
 
-        
-        
+    def decrease_font_size(self):
+        """Decrease plot base font size by 1 (minimum 6)."""
+        try:
+            val = int(self.font_size_entry.get())
+            if val > 6:
+                self.font_size_entry.delete(0, 'end')
+                self.font_size_entry.insert(0, str(val - 1))
+        except ValueError:
+            self.font_size_entry.delete(0, 'end')
+            self.font_size_entry.insert(0, "11")
 
-
-        # Dropdown to select the type of graph
-        self.graph_type_label = ctk.CTkLabel(self, text="Select the type of graph:")
-        self.graph_type_label.pack(pady=10)
-        values = ["Scatter", "Density", "Density only P50", "Density only P50 (lines)", "Density with Distribution", "Density only P50 with Distribution", "Density only P50 (lines) with Distribution", "Personalized Boxplot", "Personalized Scatter"]
-
-        if self.data_types == "emotions":
-            values.append("Classic Boxplot")
-            values.append("Radar Plot")
-            values.append("SSM Fitting (lines)")
-            values.append("SSM Fitting (sinusoidal)")
-            values.append("Empty")
-
-        self.graph_type_selector = ctk.CTkOptionMenu(self, values=values, command=self.draw_graph)
-        self.graph_type_selector.set("Graph Type")  # Default option
-        self.graph_type_selector.pack(pady=5)
-
-
+    def increase_font_size(self):
+        """Increase plot base font size by 1 (maximum 30)."""
+        try:
+            val = int(self.font_size_entry.get())
+            if val < 30:
+                self.font_size_entry.delete(0, 'end')
+                self.font_size_entry.insert(0, str(val + 1))
+        except ValueError:
+            self.font_size_entry.delete(0, 'end')
+            self.font_size_entry.insert(0, "11")
 
     def draw_graph(self, graph_type):
         """Draw the selected type of soundscape visualization.
@@ -1450,72 +1507,51 @@ class GUI(BasicWindow):
                     print(f"Warning: Could not set aspect ratio: {e}")
 
             if graph_type not in ["Personalized Boxplot", "Personalized Scatter"]:
-                # Only show legend if there are labeled elements to display
                 try:
                     fig = plt.gcf()
                     ax = plt.gca()
-                    
-                    # Check if there are any labeled elements (handles and labels)
-                    handles, labels = ax.get_legend_handles_labels()
-                    
-                    if handles and labels:
-                        # There are elements with labels, show the legend
-                        legend = plt.legend(loc='best', title=differentiation_column if differentiation_column else None)
-                        renderer = fig.canvas.get_renderer() if hasattr(fig.canvas, 'get_renderer') else None
 
-                        if renderer:
-                            try:
-                                legend_bbox = legend.get_window_extent(renderer)
-                                plot_bbox = ax.get_window_extent(renderer)
-                                
-                                # Calculate overlap ratio - fix the intersection call
-                                if legend_bbox and plot_bbox:
-                                    # Convert to the same coordinate system if needed
-                                    legend_bounds = legend_bbox.bounds  # (x0, y0, width, height)
-                                    plot_bounds = plot_bbox.bounds      # (x0, y0, width, height)
-                                    
-                                    # Calculate intersection manually
-                                    x_left = max(legend_bounds[0], plot_bounds[0])
-                                    y_bottom = max(legend_bounds[1], plot_bounds[1])
-                                    x_right = min(legend_bounds[0] + legend_bounds[2], plot_bounds[0] + plot_bounds[2])
-                                    y_top = min(legend_bounds[1] + legend_bounds[3], plot_bounds[1] + plot_bounds[3])
-                                    
-                                    if x_right > x_left and y_top > y_bottom:
-                                        # There is an intersection
-                                        intersection_area = (x_right - x_left) * (y_top - y_bottom)
-                                        legend_area = legend_bounds[2] * legend_bounds[3]
-                                        overlap_ratio = intersection_area / legend_area if legend_area > 0 else 0
-                                        
-                                        # If more than 30% of legend overlaps with plot area, move outside
-                                        if overlap_ratio > 0.3:
-                                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column if differentiation_column else None)
-                                            print("Info: Moved legend outside due to overlap")
-                                    # If no intersection, legend is fine where it is
-                            except Exception as bbox_error:
-                                print(f"Warning: Could not calculate bbox intersection: {bbox_error}")
-                                # Fallback to outside placement
-                                plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column if differentiation_column else None)
-                        else:
-                            # Fallback: if we can't get renderer, place outside
-                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column if differentiation_column else None)
-                            print("Warning: Could not get renderer for legend placement.")
-                        
-                except Exception as e:
-                    # If anything fails, use simple outside placement
+                    # 1. Obtener y aplicar tamaño de fuente numérico
                     try:
-                        fig = plt.gcf()
-                        ax = plt.gca()
-                        handles, labels = ax.get_legend_handles_labels()
-                        if handles and labels:
-                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=differentiation_column if differentiation_column else None)
-                            print(f"Warning: Could not place legend optimally, placed outside instead: {e}")
-                    except:
-                        pass  # Just don't show legend if everything fails
-                
-                plt.tick_params(axis='both', labelsize=7)
+                        base_size = int(self.font_size_entry.get()) if hasattr(self, 'font_size_entry') else 11
+                    except (ValueError, TypeError):
+                        base_size = 11
+
+                    ax.title.set_fontsize(base_size + 2)
+                    ax.xaxis.label.set_size(base_size)
+                    ax.yaxis.label.set_size(base_size)
+                    plt.tick_params(axis='both', labelsize=max(6, base_size - 2))
+
+                    # 2. Configurar posición de la leyenda
+                    handles, labels = ax.get_legend_handles_labels()
+                    leg_choice = self.legend_pos_selector.get() if hasattr(self, 'legend_pos_selector') else "Auto (Best)"
+
+                    if handles and labels:
+                        leg_font_size = max(6, base_size - 2)
+                        title_arg = differentiation_column if differentiation_column else None
+                        
+                        if leg_choice == "None (Hide)":
+                            if ax.get_legend():
+                                ax.get_legend().remove()
+                        elif leg_choice == "Outside Right":
+                            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title=title_arg, fontsize=leg_font_size)
+                        elif leg_choice == "Top Right":
+                            plt.legend(loc='upper right', title=title_arg, fontsize=leg_font_size)
+                        elif leg_choice == "Top Left":
+                            plt.legend(loc='upper left', title=title_arg, fontsize=leg_font_size)
+                        elif leg_choice == "Bottom Right":
+                            plt.legend(loc='lower right', title=title_arg, fontsize=leg_font_size)
+                        elif leg_choice == "Bottom Left":
+                            plt.legend(loc='lower left', title=title_arg, fontsize=leg_font_size)
+                        else:  # Auto (Best)
+                            plt.legend(loc='best', title=title_arg, fontsize=leg_font_size)
+
+                except Exception as e:
+                    print(f"Warning during aesthetic configuration: {e}")
+
                 plt.tight_layout()
                 plt.show()
-            
+
         except Exception as e:
             print(f"Error drawing graph: {e}")
             messagebox.showerror("Error", f"Could not draw graph:\n{e}")
@@ -1676,7 +1712,7 @@ class GUI(BasicWindow):
         frame = ctk.CTkFrame(popup, corner_radius=15)
         frame.pack(padx=20, pady=20, fill="both", expand=True)
 
-        title = ctk.CTkLabel(frame, text="IQR Values for each Emotion", font=ctk.CTkFont(size=18, weight="bold"))
+        title = ctk.CTkLabel(frame, text="IQR Values for each Perceptual Attributes", font=ctk.CTkFont(size=18, weight="bold"))
         title.pack(pady=(15, 5))
 
         # Create an inner frame to center the table and keep it compact
