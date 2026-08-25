@@ -1,4 +1,10 @@
-from enum import Enum
+"""Graphical User Interface (GUI) module for SoundGraphy.
+
+This module provides the main desktop interface for loading, filtering,
+and visualizing acoustic and perceptual soundscape data in accordance with
+the ISO 12913-3 standard.
+"""
+
 import os
 import sys
 import traceback
@@ -6,201 +12,37 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import pandas as pd
 import numpy as np
-from scipy.optimize import curve_fit
 import soundscapy as sspy
 import seaborn as sns
 import matplotlib.pyplot as plt
 from PIL import Image, ImageTk
 
-FONT=("Arial", 20)
+from soundgraphy.models import PAQ, PAQ_DICT_REVERT, PAQ_NAME_TO_ID, ssm_model
+from soundgraphy.widgets import CustomFiltering
+
+FONT = ("Arial", 20)
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
-class CustomFiltering(ctk.CTkFrame):
-    """Custom filtering entry with a dropdown list of values."""
-    def __init__(self, master, values, default_text="", **kwargs):
-        super().__init__(master, **kwargs)
-        self.values = values
-        self.default_text = default_text
-        
-        # Container with better contrast for light mode
-        container = ctk.CTkFrame(self, fg_color=("gray90", "gray13"))  # Light mode: gray90, Dark mode: gray13
-        container.pack(fill="x")
-        
-        # Entry with proper contrast
-        self.entry = ctk.CTkEntry(
-            container,
-            fg_color=("white", "gray20"),  # Light mode: white, Dark mode: gray20
-            text_color=("black", "white"),  # Light mode: black text, Dark mode: white text
-            border_color=("gray70", "gray30")  # Light mode: gray70 border, Dark mode: gray30 border
-        )
-        self.entry.pack(side="left", fill="x", expand=True)
-        self.entry.bind("<KeyRelease>", self.filter_values)
-        
-        # Toggle button with proper contrast
-        self.toggle_button = ctk.CTkButton(
-            container, 
-            width=25, 
-            text="▼", 
-            command=self.toggle_list,
-            fg_color=("gray80", "gray25"),  # Light mode: gray80, Dark mode: gray25
-            hover_color=("gray70", "gray35"),  # Light mode: gray70, Dark mode: gray35
-            text_color=("black", "white")  # Light mode: black text, Dark mode: white text
-        )
-        self.toggle_button.pack(side="left")
-        
-        self.list_window = None
-        self.list_frame = None
-        self.set(self.default_text)
-    
-    def toggle_list(self):
-        """Toggle the visibility of the dropdown list."""
-        if self.list_window and self.list_window.winfo_exists():
-            self.close_list_window()
-        else:
-            self.show_list()
-    
-    def show_list(self):
-        """Show the dropdown list with filtered values."""
-        self.list_window = ctk.CTkToplevel(self)
-        self.list_window.overrideredirect(True)
-        
-        x = self.winfo_rootx()
-        y = self.winfo_rooty() + self.winfo_height()
-        self.list_window.geometry(f"+{x}+{y}")
-        
-        # Scrollable frame with better contrast
-        self.list_frame = ctk.CTkScrollableFrame(
-            self.list_window, 
-            height=150, 
-            width=self.winfo_width(),
-            fg_color=("white", "gray20"),  # Light mode: white, Dark mode: gray20
-            scrollbar_fg_color=("gray85", "gray25"),  # Light mode: gray85, Dark mode: gray25
-            scrollbar_button_color=("gray70", "gray40"),  # Light mode: gray70, Dark mode: gray40
-            scrollbar_button_hover_color=("gray60", "gray50")  # Light mode: gray60, Dark mode: gray50
-        )
-        self.list_frame.pack()
-        
-        
-
-        # Bind mouse scroll events to the scrollable frame
-        def scroll_frame(event):
-            self.list_frame._parent_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
-        self._mousewheel_binding = self.list_frame.bind_all("<MouseWheel>", scroll_frame)  # Windows
-        self._scroll_up_binding = self.list_frame.bind_all("<Button-4>", lambda e: self.list_frame._parent_canvas.yview_scroll(-1, "units"))  # Linux/macOS
-        self._scroll_down_binding = self.list_frame.bind_all("<Button-5>", lambda e: self.list_frame._parent_canvas.yview_scroll(1, "units"))   # Linux/macOS
-
-
-        current_text = self.entry.get()
-        if current_text == self.default_text:
-            self.filtered_values = self.values
-        else:
-            self.filtered_values = [v for v in self.values if current_text.lower() in v.lower()]
-        
-        for val in self.filtered_values:
-            # Buttons with better contrast for light mode
-            btn = ctk.CTkButton(
-                self.list_frame, 
-                text=val, 
-                command=lambda v=val: self.select_value(v), 
-                fg_color="transparent",
-                hover_color=("gray90", "gray30"),  # Light mode: gray90, Dark mode: gray30
-                text_color=("black", "white"),  # Light mode: black text, Dark mode: white text
-                anchor="w"  # Align text to the left
-            )
-            btn.pack(fill="x", pady=1)
-
-        self.list_window.focus_force()
-        
-        self.list_window.bind("<FocusOut>", lambda e: self.close_list_window())
-        self.list_window.bind("<Escape>", lambda e: self.close_list_window())
-        # Bind global click event to root window to detect clicks outside
-        self.winfo_toplevel().bind("<Button-1>", self.on_global_click)
-
-        
-    
-    def filter_values(self, event=None):
-        """Filter the values based on the current entry text."""
-        if self.list_window and self.list_window.winfo_exists():
-            self.list_window.destroy()
-            self.list_window = None
-            self.show_list()
-    
-    def select_value(self, val):
-        """Select a value from the dropdown list and set it in the entry."""
-        self.set(val)
-        self.close_list_window()
-    
-    def get(self):
-        """Get the current value of the entry."""
-        return self.entry.get()
-    
-    def set(self, value):
-        """Set the value of the entry."""
-        self.entry.delete(0, "end")
-        self.entry.insert(0, value)
-
-    def close_list_window(self):
-        """Close the dropdown list window and clean up."""
-        if self.list_window:
-            try:
-                if self.list_window.winfo_exists():
-                    self.list_window.destroy()
-            except Exception:
-                # Window is already destroyed or in invalid state
-                pass
-            finally:
-                self.list_window = None
-                
-                # Safely unbind global events
-                try:
-                    self.winfo_toplevel().unbind("<Button-1>")
-                except Exception:
-                    pass
-
-                # Clean up scroll bindings
-                if self.list_frame:
-                    try:
-                        self.list_frame.unbind_all("<MouseWheel>")
-                        self.list_frame.unbind_all("<Button-4>")
-                        self.list_frame.unbind_all("<Button-5>")
-                    except Exception:
-                        pass
-                    finally:
-                        self.list_frame = None
-
-
-    def on_global_click(self, event):
-        """Handle global click events to close the dropdown list if clicked outside."""
-        if self.list_window and self.list_window.winfo_exists():
-            try:
-                x1 = self.list_window.winfo_rootx()
-                y1 = self.list_window.winfo_rooty()
-                x2 = x1 + self.list_window.winfo_width()
-                y2 = y1 + self.list_window.winfo_height()
-
-                if not (x1 <= event.x_root <= x2 and y1 <= event.y_root <= y2):
-                    self.close_list_window()
-            except Exception:
-                # If the window is in an invalid state, just close it
-                self.close_list_window()
-
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class BasicWindow(ctk.CTk):
     """Basic window class for the SoundScape application."""
     def __init__(self):
+        """Initialize the basic window configuration, icon, dimensions, and error handlers."""
         super().__init__(className="SoundGraphy")
         self.title("SoundGraphy GUI")
         self.minsize(700, 500)
 
         try:
-            logo_path = os.path.join(os.path.dirname(__file__), "logo", "logo.png")
+            logo_path = os.path.join(BASE_DIR, "logo", "logo.png")
             if os.path.exists(logo_path):
                 logo_img = ImageTk.PhotoImage(Image.open(logo_path))
                 self.iconphoto(False, logo_img)
                 self._logo_img = logo_img
+            else:
+                print(f"Warning: Logo file not found at {logo_path}. Window icon not set.")
         except Exception as e:
             print(f"Warning: Could not set window icon: {e}")
 
@@ -216,9 +58,15 @@ class BasicWindow(ctk.CTk):
 
     
     def handle_tkinter_error(self, exc_type, exc_value, exc_traceback):
-        """
-        Handle all Tkinter callback exceptions (button clicks, etc.)
-        This method overrides Tkinter's default error reporting
+        """Handle all Tkinter callback exceptions (button clicks, etc.).
+
+        Overrides Tkinter's default error reporting to display a popup and print
+        the traceback to the standard output.
+
+        Args:
+            exc_type (type): The exception class.
+            exc_value (BaseException): The exception instance.
+            exc_traceback (traceback): The traceback object.
         """
         
         # Print to console with our standard error prefix
@@ -234,30 +82,26 @@ class BasicWindow(ctk.CTk):
     def on_closing(self):
         """Handle application closing event - cleanup matplotlib and close properly."""
         try:
-            # Close all matplotlib figures to prevent background errors
-            plt.close('all')
-                
+            plt.close('all')                
         except Exception as e:
             print(f"Warning: Error during matplotlib cleanup: {e}")
         
         try:
-            # Destroy the window
             self.destroy()
         except Exception as e:
             print(f"Warning: Error during window destruction: {e}")
             
-        # Force exit if needed
         sys.exit(0)
 
     def clear_window(self):
-        """Clear the current window by destroying all widgets."""
+        """Clear the current window by destroying all child widgets."""
         for widget in self.winfo_children():
             widget.destroy()
 
 
 
 class GUI(BasicWindow):
-    """Main GUI class for the SoundScape application."""
+    """Main GUI class managing the soundscape processing workflow and visualization."""
     
     # Class constant for maximum unique values threshold
     MAX_UNIQUES = 15
@@ -266,17 +110,20 @@ class GUI(BasicWindow):
     MAX_RADAR_PLOT_ROWS = 7
     
     def __init__(self):
+        """Initialize the main graphical interface and default home view."""
         super().__init__()
 
         self.df = None  # DataFrame to hold the loaded data   
 
         try:
-            logo_path = os.path.join(os.path.dirname(__file__), "logo", "logo.png")
+            logo_path = os.path.join(BASE_DIR, "logo", "logo.png")
             if os.path.exists(logo_path):
                 pil_img = Image.open(logo_path)
                 self.logo_ctk = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(150, 150))
                 self.logo_label = ctk.CTkLabel(self, image=self.logo_ctk, text="")
                 self.logo_label.pack(pady=(20, 0))
+            else:
+                print(f"Warning: Logo file not found at {logo_path}. Logo not displayed.")
         except Exception as e:
             print(f"Warning loading UI logo: {e}")          
 
@@ -304,11 +151,20 @@ class GUI(BasicWindow):
         footer_label.pack(side="bottom", pady=(10,0))
 
     def change_mode(self, mode):
-        """Change the appearance mode of the application."""
+        """Change the appearance mode of the application.
+
+        Args:
+            mode (str): Theme mode name ('System', 'Light', or 'Dark').
+        """
         ctk.set_appearance_mode(mode)
 
     def header(self, back_func, title):
-        """Create a header with a back button and title."""
+        """Create a header with a back navigation button and title.
+
+        Args:
+            back_func (callable): Function to call when clicking the back button.
+            title (str): Header title text to display.
+        """
         header_frame = ctk.CTkFrame(self, fg_color="transparent")
         header_frame.pack(fill="x", pady=10)
 
@@ -319,10 +175,10 @@ class GUI(BasicWindow):
         title_label.place(relx=0.5, rely=0.05, anchor="center")
 
     def open_select_doc(self):
-        """Open a file dialog to select a spreadsheet document."""
+        """Open a file dialog to select and load a spreadsheet dataset (Excel, CSV, TSV, ODS)."""
         filetypes = [
             ("Excel files", "*.xls *.xlsx"),
-            ("CSV/TSF files", "*.csv *.tsv"),
+            ("CSV/TSV files", "*.csv *.tsv"),
             ("OpenDocument Spreadsheet", "*.ods"),
         ]
         filepath = filedialog.askopenfilename(
@@ -357,7 +213,7 @@ class GUI(BasicWindow):
 
     
     def data_type_selection(self):
-        """Select the type of data to process."""
+        """Display the screen to select the format/type of data to process."""
         self.clear_window()
 
         self.header(self.open_select_doc, "What type of data do you have?")
@@ -370,7 +226,7 @@ class GUI(BasicWindow):
 
 
     def handle_emotions(self):
-        """Handle the emotions mapping."""
+        """Render the column mapping screen for the 8 perceptual emotion variables."""
 
         # To avoid losing previous selections when reloading the emotions
         previous_selections = {}
@@ -387,8 +243,7 @@ class GUI(BasicWindow):
 
         columns = list(self.df.columns)
         self.emotion_selectors = {}
-        emotion_labels = ["Annoying", "Calm", "Chaotic", "Eventful", "Monotonous", "Pleasant", "Uneventful", "Vibrant"]
-        default_labels = {
+        default_labels_q2 = {
             "Annoying": "Q2.6",
             "Calm": "Q2.5",
             "Chaotic": "Q2.2",
@@ -398,18 +253,8 @@ class GUI(BasicWindow):
             "Uneventful": "Q2.4",
             "Vibrant": "Q2.3"
         }
-        default_labels_after = {
-            "Annoying": "PAQ5",
-            "Calm": "PAQ8",
-            "Chaotic": "PAQ4",
-            "Eventful": "PAQ3",
-            "Monotonous": "PAQ6",
-            "Pleasant": "PAQ1",
-            "Uneventful": "PAQ7",
-            "Vibrant": "PAQ2"
-        }
 
-        for emot in emotion_labels:
+        for emot in PAQ_NAME_TO_ID.keys():
             frame = ctk.CTkFrame(self, fg_color="transparent")
             frame.pack(pady=5)
             label = ctk.CTkLabel(frame, text=f"{emot}:", width=120, anchor="w")
@@ -421,10 +266,10 @@ class GUI(BasicWindow):
             dropdown.pack(side="left", padx=5)
             if emot in previous_selections:
                 dropdown.set(previous_selections[emot])
-            elif default_labels[emot] in columns:
-                dropdown.set(default_labels[emot])
-            elif default_labels_after[emot] in columns:
-                dropdown.set(default_labels_after[emot])
+            elif default_labels_q2.get(emot) in columns:
+                dropdown.set(default_labels_q2.get(emot))
+            elif PAQ_NAME_TO_ID.get(emot) in columns:
+                dropdown.set(PAQ_NAME_TO_ID.get(emot))
             else:
                 dropdown.set("Select a column")
 
@@ -435,7 +280,7 @@ class GUI(BasicWindow):
         self.confirm_emot_button.pack(pady=20)
 
     def submit_emots(self):
-        """Submit the selected emotions mapping."""
+        """Validate emotion mapping, convert DataFrame to PAQ format, and calculate ISO coordinates."""
         for emot, dropdown in self.emotion_selectors.items():
             selected_value = dropdown.get()
             if selected_value not in self.df.columns:
@@ -460,16 +305,14 @@ class GUI(BasicWindow):
 
 
     def handle_pe(self):
-        """Handle the mapping of ISOPleasant and ISOEventful."""
+        """Render the column mapping screen for ISOPleasant and ISOEventful coordinates."""
         
-        # Save previous selections BEFORE clearing the window
         previous_selections = {}
         if hasattr(self, "PE_selectors"):
             try:
                 for pe, dropdown in self.PE_selectors.items():
                     previous_selections[pe] = dropdown.get()
             except Exception:
-                # If widgets are destroyed, just start fresh
                 previous_selections = {}
         
         self.clear_window()
@@ -510,7 +353,7 @@ class GUI(BasicWindow):
         self.confirm_pe_button.pack(pady=20)
 
     def submit_pe(self):
-        """Submit the selected ISOPleasant and ISOEventful mapping."""
+        """Validate and apply ISOPleasant and ISOEventful coordinate column mapping."""
         for pe, dropdown in self.PE_selectors.items():
             selected_value = dropdown.get()
             if selected_value not in self.df.columns:
@@ -524,7 +367,7 @@ class GUI(BasicWindow):
         self.filtering()
 
     def filtering(self):
-        """Filter the DataFrame based on user-selected columns."""
+        """Display the main column selection interface for applying data filters."""
         self.clear_window()
         back_func = self.handle_pe if self.data_types == "coords" else self.handle_emotions
         self.header(back_func, "Select a column to filter:")
@@ -550,7 +393,11 @@ class GUI(BasicWindow):
         self.finish_button.pack(pady=10)
 
     def select_filter(self, selected_column):
-        """Select the type of filter to apply to the selected column."""
+        """Generate filtering widgets dynamically based on the selected column's data type.
+
+        Args:
+            selected_column (str): Name of the column to filter.
+        """
         if selected_column not in self.df.columns:
             messagebox.showerror("Error", "You must select a valid column.")
             return self.filtering()
@@ -670,8 +517,7 @@ class GUI(BasicWindow):
         
     
     def toggle_missing_entry(self):
-        """Toggle the visibility of the entry field for missing values."""
-        # Hide or show the entry field for missing values
+        """Toggle the visibility of the text entry for missing value definitions."""
         if self.include_missing_var.get():
             self.missing_value_label.pack(side="left", padx=5)
             self.missing_value_entry.pack(side="left", padx=5)
@@ -680,13 +526,13 @@ class GUI(BasicWindow):
             self.missing_value_entry.pack_forget()
 
     def select_all_values(self):
-        """Select all checkboxes in the values filter."""
+        """Select all categorical checkboxes in the filter panel."""
         if hasattr(self, 'vars_chosen'):
             for var in self.vars_chosen.values():
                 var.set(True)
 
     def select_none_values(self):
-        """Deselect all checkboxes in the values filter."""
+        """Deselect all categorical checkboxes in the filter panel."""
         if hasattr(self, 'vars_chosen'):
             for var in self.vars_chosen.values():
                 var.set(False)
@@ -695,7 +541,15 @@ class GUI(BasicWindow):
         
 
     def ask_for_numeric_entry(self, label_text, include_checkbox=True):
-        """Ask the user for a numeric entry with an optional checkbox to include it."""
+        """Create a numeric input field with an optional inclusion checkbox.
+
+        Args:
+            label_text (str): Descriptive label text.
+            include_checkbox (bool, optional): Whether to display an inclusive boundary checkbox. Defaults to True.
+
+        Returns:
+            tuple[ctk.CTkEntry, ctk.BooleanVar | None]: The entry widget and its BooleanVar state.
+        """
         frame = ctk.CTkFrame(self)
         frame.pack(pady=10, fill="x")
         label = ctk.CTkLabel(frame, text=label_text)
@@ -716,7 +570,12 @@ class GUI(BasicWindow):
             
 
     def handle_numeric_op(self, op, selected_column):
-        """Handle the numeric operation selected by the user."""
+        """Render input widgets according to the chosen numeric operator.
+
+        Args:
+            op (str): Selected numeric operator (e.g., 'between', '< (or <=)').
+            selected_column (str): Target column for the filter.
+        """
 
         # Remove previous numeric entry if it exists
         for frame in getattr(self, "numeric_frame", []):
@@ -748,7 +607,14 @@ class GUI(BasicWindow):
 
     
     def ask_for_date_entry(self, label_text):
-        """Ask the user for a date entry with a label."""
+        """Create a text input field for date restrictions.
+
+        Args:
+            label_text (str): Descriptive label for the date input.
+
+        Returns:
+            ctk.CTkEntry: Configured text entry widget.
+        """
         frame = ctk.CTkFrame(self)
         frame.pack(pady=10, fill="x")
         label = ctk.CTkLabel(frame, text=label_text)
@@ -761,7 +627,12 @@ class GUI(BasicWindow):
         return entry
 
     def handle_date_op(self, op, selected_column):
-        """Handle the date operation selected by the user."""
+        """Render date input widgets according to the chosen date operator.
+
+        Args:
+            op (str): Selected date comparison operator (e.g., 'before', 'between').
+            selected_column (str): Target column for the filter.
+        """
         for frame in getattr(self, "date_frame", []):
             frame.destroy()
         if hasattr(self, 'apply_filter_button'):
@@ -790,7 +661,11 @@ class GUI(BasicWindow):
     
 
     def apply_filter(self, selected_column):
-        """Apply the selected filter to the DataFrame."""
+        """Apply the configured categorical, numeric, or temporal filter to the dataset.
+
+        Args:
+            selected_column (str): Column name to apply the filter on.
+        """
         missing_rows = pd.DataFrame()
         
         keep_missing = self.include_missing_var.get()
@@ -1056,7 +931,7 @@ class GUI(BasicWindow):
         return self.filtering()
 
     def finish_filtering(self):
-        """Finish the filtering process and display the filtered DataFrame."""
+        """Finalize filtering and display the plotting / metrics selection interface."""
         self.clear_window()
         self.header(self.filtering, "Filtering Complete!")
         
@@ -1150,7 +1025,11 @@ class GUI(BasicWindow):
 
 
     def draw_graph(self, graph_type):
-        """Draw the selected type of graph based on the filtered DataFrame."""
+        """Draw the selected type of soundscape visualization.
+
+        Args:
+            graph_type (str): Type of chart to generate (e.g., 'Scatter', 'Density', 'Radar Plot').
+        """
         if not hasattr(self, 'df') or self.df.empty:
             messagebox.showerror("Error", "No data to visualize. Please filter the data first.")
             exit(1)
@@ -1617,7 +1496,11 @@ class GUI(BasicWindow):
             messagebox.showerror("Error", f"Could not draw graph:\n{e}")
 
     def plot_personalized_boxplot(self, differentiation_column=None):
-        """Plot the personalized boxplot based on user selections."""
+        """Plot a customized Seaborn boxplot based on user-selected X and Y columns.
+
+        Args:
+            differentiation_column (str | None, optional): Column name used for hue categorization. Defaults to None.
+        """
         x_column = self.x_axis_selector.get() if hasattr(self, 'x_axis_selector') else None
         y_column = self.y_axis_selector.get() if hasattr(self, 'y_axis_selector') else None
 
@@ -1656,7 +1539,11 @@ class GUI(BasicWindow):
         plt.show()
 
     def plot_custom_scatter(self, differentiation_column=None):
-        """Dibuja un Scatter Plot basado en las dos variables elegidas por el usuario."""
+        """Plot a customized bivariate scatter plot based on user selections.
+
+        Args:
+            differentiation_column (str | None, optional): Column name used for hue categorization. Defaults to None.
+        """
         x_column = self.custom_x_selector.get() if hasattr(self, 'custom_x_selector') else None
         y_column = self.custom_y_selector.get() if hasattr(self, 'custom_y_selector') else None
 
@@ -1697,26 +1584,15 @@ class GUI(BasicWindow):
         plt.show()
 
     def revert_from_PAQ(self, data):
-        """Revert the DataFrame from PAQ columns to emotions."""
-        class PAQ(Enum):
-            """Enumeration of Perceptual Attribute Questions (PAQ) names and IDs."""
+        """Revert PAQ codes (PAQ1-PAQ8) back to their corresponding emotion names.
 
-            PLEASANT = ("pleasant", "PAQ1")
-            VIBRANT = ("vibrant", "PAQ2")
-            EVENTFUL = ("eventful", "PAQ3")
-            CHAOTIC = ("chaotic", "PAQ4")
-            ANNOYING = ("annoying", "PAQ5")
-            MONOTONOUS = ("monotonous", "PAQ6")
-            UNEVENTFUL = ("uneventful", "PAQ7")
-            CALM = ("calm", "PAQ8")
+        Args:
+            data (pd.DataFrame | pd.Series): Data containing PAQ ID headers or indices.
 
-            def __init__(self, label: str, id: str):
-                self.label = label
-                self.id = id
-
-        PAQ_DICT_REVERT = {paq.id: paq.label for paq in PAQ}
-        
-        
+        Returns:
+            pd.DataFrame | pd.Series: Renamed dataset copy with natural emotion labels.
+        """
+                
         # Check if it's a DataFrame or Series and handle accordingly
         if isinstance(data, pd.DataFrame):
             data = data.copy()
@@ -1728,11 +1604,7 @@ class GUI(BasicWindow):
         return data
         
     def show_iqr(self):
-        """Show the IQR of each column PAQ and:
-            - Show it in a messagebox
-            - Save it to a file
-        """
-
+        """Calculate and display the Interquartile Range (IQR) table in a modal dialog."""
         if not hasattr(self, 'df') or self.df.empty:
             messagebox.showerror("Error", "No data to calculate IQR. Please filter the data first.")
             return
@@ -1805,10 +1677,15 @@ class GUI(BasicWindow):
         ctk.CTkButton(buttons_frame, text="Save IQR Values", command=lambda: self.save_df_to_file(IQR, default_name=self.file_name + "_filtered_IQR")).pack(side="left", padx=5)
 
     def save_df_to_file(self, df, default_name=None):
-        """Save the DataFrame to a file."""
+        """Export a pandas DataFrame or Series to a file via a native save file dialog.
+
+        Args:
+            df (pd.DataFrame | pd.Series): The data structure to export.
+            default_name (str | None, optional): Suggested default filename without extension. Defaults to None.
+        """
         filetypes = [
             ("Excel files", "*.xls *.xlsx"),
-            ("CSV/TSF files", "*.csv *.tsv"),
+            ("CSV/TSV files", "*.csv *.tsv"),
             ("OpenDocument Spreadsheet", "*.ods"),
         ]
         filepath = filedialog.asksaveasfilename(
@@ -1843,10 +1720,10 @@ class GUI(BasicWindow):
             messagebox.showerror("Error", f"Could not save file:\n{e}")
 
     def obtain_median(self):
-        """Calculate the median of the DF.
-        
+        """Calculate the median coordinates for each subset defined by the differentiation column.
+
         Returns:
-            median (pd.DataFrame): DataFrame with the median values.
+            pd.DataFrame | None: DataFrame containing median coordinates and PAQ values, or None if no data.
         """
         if not hasattr(self, 'df') or self.df.empty:
             messagebox.showerror("Error", "No data to calculate median. Please filter the data first.")
@@ -1882,10 +1759,7 @@ class GUI(BasicWindow):
         return median
 
     def show_median(self):
-        """Show the median of each PAQ and:
-            - Show it in a messagebox
-            - Save it to a file
-        """
+        """Calculate and display median coordinates in a modal dialog."""
         median = self.obtain_median()
         
 
@@ -1929,7 +1803,12 @@ class GUI(BasicWindow):
 
 
     def draw_median(self, plot_df, differentiation_column=None):
-        """Calculate and show the median of the DF."""
+        """Overlay median coordinate points onto the active matplotlib axes.
+
+        Args:
+            plot_df (pd.DataFrame): The filtered dataset.
+            differentiation_column (str | None, optional): Categorical hue grouping variable. Defaults to None.
+        """
         if not hasattr(self, 'df') or self.df.empty:
             messagebox.showerror("Error", "No data to calculate median. Please filter the data first.")
             return
@@ -1979,10 +1858,10 @@ class GUI(BasicWindow):
 
     
     def obtain_ssm_metrics(self):
-        """Calculate the SSM metrics of the DF.
-        
+        """Calculate the Soundscape Standard Model (SSM) metrics on the dataset's medians.
+
         Returns:
-            ssm_metrics (pd.DataFrame): DataFrame with the SSM metrics.
+            pd.DataFrame | None: Merged dataset of medians and SSM metrics, or None if calculation fails.
         """
         median = self.obtain_median()
         SSM_metrics = sspy.surveys.processing.ssm_metrics(median)
@@ -2007,10 +1886,7 @@ class GUI(BasicWindow):
 
     
     def show_ssm_metrics(self):
-        """Show the SSM metrics and:
-            - Show it in a messagebox
-            - Save it to a file
-        """
+        """Calculate and display SSM metrics table in a modal dialog."""
         merged_df = self.obtain_ssm_metrics()
         
 
@@ -2060,7 +1936,7 @@ class GUI(BasicWindow):
         
 
     def draw_diagonals(self):
-        """Draw diagonal lines in the plot."""
+        """Draw ISO 12913-3 reference diagonal quadrant lines and emotion quadrant labels on the active plot."""
         fig = plt.gcf()
         axes = fig.get_axes()
         
@@ -2089,56 +1965,5 @@ class GUI(BasicWindow):
         ax.text(-loc, loc, '(chaotic)', **label_style)
         ax.text(-loc, -loc, '(monotonous)', **label_style)
         ax.text(loc, -loc, '(calm)', **label_style)
-
-
-
-# ---- SSM Cosine Fitting ----
-def ssm_model(theta, amp, dis, elev):
-    """SSM model to fit the data.
-    
-    Args:
-        theta (float): Angle in degrees.
-        amp (float): Amplitude.
-        dis (float): Displacement.
-        elev (float): Elevation.
-    
-    Returns:
-        float: Fitted value.
-    """
-    return elev + amp * np.cos(np.radians(theta - dis))
         
 
-
-
-        
-    
-        
-        
-
-
-if __name__ == "__main__":
-    app = None
-    try:
-        app = GUI()
-        app.mainloop()
-    except Exception as e:
-        ERROR_MSG = f"ERROR DETECTED:\n\n{str(e)}\n\nTechnical details:\n{traceback.format_exc()}"
-        try:
-            root = ctk.CTk()  # Create a hidden root window for tkinter
-            root.withdraw()  # Hide the main window
-            messagebox.showerror("ERROR DETECTED - Fatal Error", ERROR_MSG)
-            root.destroy()
-        except Exception as inner_e:
-            # If tkinter is not available, print the error to the console
-            print("Could not show error message with tkinter. Printing to console instead.")
-            print(ERROR_MSG)
-    finally:
-        # Cleanup on exit
-        try:
-            plt.close('all')
-            if app:
-                app.quit()
-        except Exception:
-            pass
-        import sys
-        sys.exit(0)

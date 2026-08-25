@@ -18,12 +18,15 @@ jobs:
           - os: ubuntu-latest
             artifact_name: SoundGraphy-Linux
             icon_param: ""
+            path_sep: ":"
           - os: windows-latest
             artifact_name: SoundGraphy-Windows.exe # Añadimos la extensión aquí para automatizar
             icon_param: "--icon=logo/logo.ico"
+            path_sep: ";"
           - os: macos-latest
             artifact_name: SoundGraphy-Mac.app
             icon_param: "--icon=logo/logo.icns"
+            path_sep: ":"
 
     steps:
     - name: Descargar codigo
@@ -43,20 +46,28 @@ jobs:
 
     - name: Compilar con PyInstaller
       run: |
-        # Usamos un nombre temporal plano para pyinstaller para evitar extensiones dobles
-        pyinstaller --onefile --windowed ${{ matrix.icon_param }} --name="SoundGraphy" SoundGraphy.py
+        pyinstaller --noconfirm --onefile --windowed \
+          ${{ matrix.icon_param }} \
+          --name="SoundGraphy" \
+          --add-data="logo${{ matrix.path_sep }}logo" \
+          --collect-all="customtkinter" \
+          main.py
       shell: bash
 
-    - name: Preparar Binarios (Evitar carpetas dist)
+    - name: Preparar Binarios
       run: |
         cd dist
         if [ "${{ matrix.os }}" = "macos-latest" ]; then
-          # Mac necesita ir en un ZIP para no perder los permisos del .app al subirse a la Release
+          # Mac empaqueta el .app generado
           zip -r ../SoundGraphy-Mac.zip SoundGraphy.app
         elif [ "${{ matrix.os }}" = "windows-latest" ]; then
-          mv SoundGraphy.exe ../SoundGraphy-Windows.exe
+          # Para Windows empaquetamos la carpeta distribuida con sus dependencias
+          cd SoundGraphy
+          zip -r ../../SoundGraphy-Windows.zip .
         else
-          mv SoundGraphy ../SoundGraphy-Linux
+          # Para Linux empaquetamos el directorio distribuible
+          cd SoundGraphy
+          tar -czf ../../SoundGraphy-Linux.tar.gz .
         fi
       shell: bash
 

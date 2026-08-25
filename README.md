@@ -47,7 +47,7 @@ SoundGraphy is established upon a robust functional tripod that includes:
     ```
 4. **Run the application:**
     ```bash
-    python SoundGraphy.py
+    python main.py
     ```
 ### Option 2: Using the Executable (End-User)
 
@@ -72,6 +72,23 @@ To install and run the executable, follow these steps:
 - **Matplotlib & Seaborn**: For data visualization.
 - **SciPy**: For statistical analysis and curve fitting.
 - **Soundscapy**: For soundscape data processing and analysis.
+
+## 🏗️ Project Architecture
+
+SoundGraphy is modularized into distinct Python modules to promote maintainability, code clarity, and external contributions:
+```txt
+SoundGraphy/
+├── examples/              # Example datasets for testing and demonstration
+├── logo/                  # Application branding and visual assets
+├── soundgraphy/           # Main package
+│   ├── __init__.py        # Package initialization and metadata
+│   ├── gui.py             # Main GUI layout, event handling, and visualization pipelines
+│   ├── models.py          # Data models, PAQ definitions, and SSM cosine fitting functions
+│   └── widgets.py         # Custom reusable CustomTkinter UI components
+├── main.py                # Main application entry point and global error handling
+├── requirements.txt       # Project dependencies
+└── LICENSE                # Open-source license file
+```
 
 ## 🤝 Contributing
 Contributions are welcome! Please fork the repository and submit a pull request with your improvements or bug fixes. For major changes, please open an issue first to discuss what you would like to change.
