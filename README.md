@@ -97,20 +97,21 @@ Contributions are welcome! Please fork the repository and submit a pull request 
 
 The citation will be available soon.
 
-<!--If you use SoundGraphy in your research, please cite it as follows:
+If you use SoundGraphy in your research, please cite it as follows:
 
 ```
-@software{SoundGraphy2024,
-  title = {SoundGraphy: A Graphical and Statistical Tool for Assessing Acoustic Perception according to ISO 12913-3},
-  author = {Olivares, Arturo},
-  year = {2024},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/arturo-olvrs/SoundGraphy}}
+@article{OlivaresMartos2026,
+  author    = {Olivares Martos, A. and Garc{\'i}a-Quesada, R. and Vida Manzano, J.},
+  title     = {Making Soundscape Assessment Accessible: The {SoundGraphy} Tool},
+  journal   = {Journal of Open Research Software},
+  volume    = {14},
+  pages     = {63},
+  year      = {2026},
+  doi       = {10.5334/jors.771},
+  url       = {https://doi.org/10.5334/jors.771}
 }
-```-->
+```
 
-<!--// TODO: Añadir bien la citación, con DOI.-->
 
 ## 📄 License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
